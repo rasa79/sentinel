@@ -10,9 +10,8 @@
 - **What this means:** The demo chaos injector (`demo_stack`) only exercises container- and
   process-level faults (latency spike, error burst, memory leak, bad deploy). There is no network
   degradation (e.g. Toxiproxy) and no disk-fill fault in v1.
-- **Where partial coverage lives:** none (component `demo_stack` not yet created).
-- **TODO(review):** move this marker into `demo_stack/services/common.py` when the demo stack is
-  created (Phase 1) and confirm the chaos-type coverage statement.
+- **Where partial coverage lives:** the chaos injector is `demo_stack/services/common.py`; the scope
+  caveat is carried by the L1 review marker in that file.
 
 ## L2 — No authentication/authorization on API endpoints; Docker socket mounted (user-visible)
 

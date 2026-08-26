@@ -12,3 +12,5 @@ every code block must have a row here. Concept tags are used for the cross-refer
 | LEARN[04] | Uniform JSON→extract→validate→repair structured output (deep-dive, D1)       | src/sentinel/llm/structured.py:1  | structured output; prompt-and-parse; repair loop; Pydantic     |
 | LEARN[05] | One langchain-openai client for cloud and local Ollama (D3)                  | src/sentinel/llm/factory.py:1     | OpenAI-compatible API; provider abstraction; base_url; api key |
 | LEARN[06] | host.docker.internal vs localhost from containers (Docker Desktop/WSL2, D4)  | scripts/smoke_llm.py:1            | docker networking; host-gateway; namespace isolation; WSL2     |
+| LEARN[07] | Chaos-as-a-deterministic-state-machine (process-local chaos state)                | demo_stack/services/common.py:1   | chaos injection; state machine; fault injection; reset timer    |
+| LEARN[08] | prometheus-client metric types (Counter vs Histogram vs Gauge)                    | demo_stack/services/common.py:68  | prometheus-client; counter; histogram; gauge; metrics           |
