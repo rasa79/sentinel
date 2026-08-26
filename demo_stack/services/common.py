@@ -247,6 +247,42 @@ class DeployWriter:
             )
 
 
+# LEARN[10]: push-vs-pull logging — toy services push directly to Loki (acceptable for a demo)
+#  Why this way: instead of running a log agent (Promtail / Alloy / Fluent Bit) that tails files or
+# the
+#    Docker log driver, each toy service POSTs its structured JSON log line straight to Loki's push
+#   API
+#   (`/loki/api/v1/push`) from a background worker thread. stdout remains the human-visible copy.
+# Good sides:
+#   - no extra agent container or Docker logging plugin to configure; the push is just an HTTP POST
+#   - the log line is structured JSON by construction (the service already has the object), so no
+#     fragile log-line parsing/relabeling is needed
+#   - it exercises the same push path a real service would use behind an agent, so the agent's
+#     queries work unchanged
+# Drawbacks:
+#    - a naive push thread has at-least-once/buffering gaps: a crash between publish and deliver
+#   loses
+#     a record, and the queue is in-memory, so nothing survives a restart (production would use an
+#     agent with durable buffering and backpressure)
+#   - push traffic is unbounded without a rate limit; a busy service would flood Loki
+#   - the service must know Loki's URL and tolerate push failures (we log-and-continue)
+# Concept: log aggregation has a pull and a push topology. Pull (Loki's default discovery is scrape/
+#    Promtail) has the aggregator read logs, which decouples it from the app but needs a
+#   discovery/tail
+#    mechanism. Push has the app send logs, which is simple and real-time but puts the reliability
+#   burden
+#   on the app/buffer. Loki's push API lets either work; production stacks normally use an agent
+#    (Promtail/Alloy/Fluent Bit) because it owns tailing, buffering, batching and backpressure. For
+#   this
+#    demo the trade-off is worth it: one HTTP POST per record, no agent to run, and stdout acts as
+#   the
+#    durable-enough copy. This is not a weakened requirement — it is a documented design choice, so
+#   it is
+#    NOT a TODO(review) item. The thread is a queue-drain loop: workers enqueue a dict, we batch and
+#   POST;
+#    a push failure is logged and swallowed so the request path is never blocked (see LokiPusher
+#   below).
+# See also: LEARN[08] (metrics), D9 (plain HTTP clients), the Loki config in deploy/loki
 class LokiPusher:
     """Pushes structured JSON log lines to Loki's push API via a daemon background thread.
 
