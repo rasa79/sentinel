@@ -105,6 +105,13 @@ class VerificationSettings(BaseModel):
     attempts: int = 3
 
 
+class RAGSettings(BaseModel):
+    model_config = SettingsConfigDict(extra="forbid")
+
+    top_k: int = 3
+    min_score: float = 0.3  # cosine similarity floor below which a result is dropped as noise
+
+
 class Settings(BaseSettings):
     """Top-level typed settings object (D14).
 
@@ -130,6 +137,7 @@ class Settings(BaseSettings):
     prometheus: PrometheusSettings = Field(default_factory=PrometheusSettings)
     remediation: RemediationSettings = Field(default_factory=RemediationSettings)
     verification: VerificationSettings = Field(default_factory=VerificationSettings)
+    rag: RAGSettings = Field(default_factory=RAGSettings)
 
     @model_validator(mode="before")
     @classmethod

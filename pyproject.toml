@@ -96,3 +96,7 @@ disallow_any_explicit = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: requires the compose Postgres stack",
+    "e2e: requires the full compose stack and a live LLM",
+]

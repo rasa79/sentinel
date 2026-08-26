@@ -18,3 +18,4 @@ every code block must have a row here. Concept tags are used for the cross-refer
 | LEARN[10] | Push-vs-pull logging — toy services push directly to Loki (D10 context)                  | demo_stack/services/common.py:250 | log aggregation; Loki push API; Promtail/agent; buffering gaps     |
 | LEARN[11] | Alembic migrations for a Flyway/Liquibase user (D7)                                          | alembic/versions/0001_initial.py:1 | alembic; upgrade/downgrade; schema migration; baseline/adoption   |
 | LEARN[12] | Why embeddings are provider-independent local models; vector search (deep-dive, D2)              | src/sentinel/rag/embeddings.py:1   | embeddings; cosine similarity; sentence-transformers; pgvector    |
+| LEARN[13] | Retrieval: query-time embedding symmetry + score floor (QS-4 cross-ref to LEARN[12])                 | src/sentinel/rag/retrieve.py:1     | retrieval; cosine distance; top-k; score floor                    |
