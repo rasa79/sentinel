@@ -104,4 +104,5 @@ class Runbook(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     embedding: Mapped[list[float]] = mapped_column(Vector(384), nullable=False)

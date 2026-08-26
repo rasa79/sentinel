@@ -39,6 +39,14 @@ Pre-declared scope cuts and known weaknesses are tracked in
 [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) (user-visible items are summarized below). Review
 markers (`TODO(review)`) are enforced live by the pre-commit protocol checker.
 
+## Runbook ingestion (RAG)
+
+`uv run sentinel ingest-runbooks` chunks the `runbooks/` corpus (whole doc + per-`##`-section
+chunks), embeds each with a local `all-MiniLM-L6-v2` model, and upserts into the `runbooks` table
+(idempotent by content hash — re-running never duplicates). The model is downloaded **on first
+ingest** into `./.cache` (gitignored), so the first run needs network access and a moment; later
+runs reuse the cached model and are quick.
+
 - **L1 – Chaos suite scope:** only container/process-level faults; no network degradation or
   disk-fill in v1.
 - **L2 – Demo-only security posture:** unauthenticated API endpoints and a mounted Docker socket
