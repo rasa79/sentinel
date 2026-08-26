@@ -1,0 +1,57 @@
+# KNOWN LIMITATIONS
+
+> Pre-declared scope cuts and known weaknesses, tracked per the Deferred-Work Tracking Protocol.
+> Each entry carries exactly one review marker whose location is either inline here (while the
+> affected component does not yet exist — "satisfied-until-created") or in the code once the
+> component exists. The protocol checker enforces exactly one marker per entry.
+
+## L1 — Chaos suite covers container/process faults only (user-visible)
+
+- **What this means:** The demo chaos injector (`demo_stack`) only exercises container- and
+  process-level faults (latency spike, error burst, memory leak, bad deploy). There is no network
+  degradation (e.g. Toxiproxy) and no disk-fill fault in v1.
+- **Where partial coverage lives:** none (component `demo_stack` not yet created).
+- **TODO(review):** move this marker into `demo_stack/services/common.py` when the demo stack is
+  created (Phase 1) and confirm the chaos-type coverage statement.
+
+## L2 — No authentication/authorization on API endpoints; Docker socket mounted (user-visible)
+
+- **What this means:** Every API endpoint, including approvals, is unauthenticated, and the
+  `sentinel-api` container mounts `/var/run/docker.sock`. This is a deliberate demo-only security
+  posture, not production hardening.
+- **Where partial coverage lives:** none (component `src/sentinel/api` not yet created).
+- **TODO(review):** move this marker into `src/sentinel/api/deps.py` when the API exists (Phase 5)
+  and confirm the Docker-socket mount comment.
+
+## L3 — Single-tenant, single API process; no horizontal scaling (user-visible)
+
+- **What this means:** Concurrent investigations are serialized through one process; there is no
+  horizontal scaling, and concurrent runs share the single checkpointer.
+- **Where partial coverage lives:** none (component `src/sentinel/api` not yet created).
+- **TODO(review):** move this marker into `src/sentinel/api/app.py` when the API exists (Phase 5).
+
+## L4 — Post-remediation verification is a fixed-window metric re-check (user-visible)
+
+- **What this means:** Verification is a fixed-window re-query of the alerting expression after
+  `verification.delay_seconds`, with no statistical/confirmation window and no auto-rollback on
+  flapping.
+- **Where partial coverage lives:** none (component `src/sentinel/agent/nodes/verify.py` not yet
+  created).
+- **TODO(review):** move this marker into `src/sentinel/agent/nodes/verify.py` when the verify node
+  exists (Phase 6) and pair it with the LEARN comment that names this accepted risk.
+
+## L5 — Grafana only an optional compose profile; no provisioned dashboards (user-visible)
+
+- **What this means:** Grafana is present only behind an optional compose profile and ships no
+  provisioned dashboards.
+- **Where partial coverage lives:** none (component `deploy/grafana` not yet created).
+- **TODO(review):** move this marker into `deploy/docker-compose.yaml` when the Grafana profile is
+  defined (Phase x) and re-state the "no provisioned dashboards" caveat.
+
+## L6 — LangSmith tracing/eval-upload is a no-op without LANGSMITH_API_KEY (internal-only)
+
+- **What this means:** When `LANGSMITH_API_KEY` is unset, tracing and eval-upload are a logged
+  no-op; the harness still runs and scores locally.
+- **Where partial coverage lives:** none (component `src/sentinel/evals` not yet created).
+- **TODO(review):** move this marker into `src/sentinel/evals/harness.py` when the eval harness
+  exists (Phase 7) and confirm the no-op guard.

@@ -21,3 +21,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+      - id: sentinel-protocols
+        name: sentinel working-protocol checker (QS-1 + deferred-work + LEARN index)
+        entry: uv run python scripts/check_protocols.py
+        language: system
+        pass_filenames: false
+        always_run: true

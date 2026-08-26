@@ -29,3 +29,19 @@ configured provider. Provider is chosen by `LLM_PROVIDER=ollama|openai` (or `--p
 
 The script exits `0` on a valid structured object, `1` if the provider was reached but returned
 invalid output, and `2` with a clear message if the endpoint is unreachable.
+
+## Known limitations
+
+Pre-declared scope cuts and known weaknesses are tracked in
+[`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) (user-visible items are summarized below). Review
+markers (`TODO(review)`) are enforced live by the pre-commit protocol checker.
+
+- **L1 – Chaos suite scope:** only container/process-level faults; no network degradation or
+  disk-fill in v1.
+- **L2 – Demo-only security posture:** unauthenticated API endpoints and a mounted Docker socket
+  in the API container.
+- **L3 – Single-tenant / single process:** concurrent investigations are serialized indefinitely.
+- **L4 – Fixed-window verification:** no statistical confirmation and no auto-rollback on flap.
+- **L5 – Grafana optional:** present only behind a compose profile with no provisioned dashboards.
+- **L6 – LangSmith no-op:** tracing/eval-upload to LangSmith is a logged no-op without a key
+  (internal-only; not user-visible).
