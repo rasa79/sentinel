@@ -1,0 +1,23 @@
+# Pre-commit hook configuration (Task 0.2; the local protocol checker hook is added in Task 0.6).
+# NOTE: this repo uses a project-local uv cache + python install dir because ~/.cache and
+# ~/.local/share are read-only in this environment. To run these hooks you must export:
+#   UV_CACHE_DIR=/path/to/repo/.uv-cache
+#   UV_PYTHON_INSTALL_DIR=/path/to/repo/.uv-python
+#   PRE_COMMIT_HOME=/path/to/repo/.pre-commit-cache
+# before `pre-commit`. The mypy hook is `language: system` so it runs in the project venv
+# (where all runtime deps for type-checking are installed) via `uv run`.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy
+        language: system
+        pass_filenames: false
+        always_run: true

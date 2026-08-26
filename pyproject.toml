@@ -72,3 +72,27 @@ sentinel = "sentinel.cli.main:app"
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src"]
+
+# Relax strictness only for test code, which is allowed to lean on pytest magic.
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_any_generics = false
+disallow_any_explicit = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
