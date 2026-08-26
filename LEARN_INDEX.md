@@ -14,3 +14,4 @@ every code block must have a row here. Concept tags are used for the cross-refer
 | LEARN[06] | host.docker.internal vs localhost from containers (Docker Desktop/WSL2, D4)  | scripts/smoke_llm.py:1            | docker networking; host-gateway; namespace isolation; WSL2     |
 | LEARN[07] | Chaos-as-a-deterministic-state-machine (process-local chaos state)                | demo_stack/services/common.py:1   | chaos injection; state machine; fault injection; reset timer    |
 | LEARN[08] | prometheus-client metric types (Counter vs Histogram vs Gauge)                    | demo_stack/services/common.py:68  | prometheus-client; counter; histogram; gauge; metrics           |
+| LEARN[09] | Demo services write deploy events directly to the shared DB (D8)                       | demo_stack/services/common.py:176 | shared-database pattern; deploy events; psycopg; schema coupling |

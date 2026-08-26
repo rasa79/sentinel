@@ -173,6 +173,37 @@ class ChaosState:
 CHAOS = ChaosState()
 
 
+# LEARN[09]: demo services write deploy events straight to the shared Postgres DB (mandatory — D8)
+#  Why this way: each toy service inserts its own deploy rows into the shared `deployments` table
+# over
+#    the compose network, instead of POSTing to a deploy-ingestion API. The demo stack and the
+#   Sentinel
+#   app share that database anyway, so a write is fewer moving parts than an ingestion endpoint.
+# Good sides:
+#   - trivial to wire: psycopg + a CREATE TABLE IF NOT EXISTS, no extra HTTP service to build/test
+#   - the data is immediately visible to the agent (Phase 2 reads the same table for deploy history)
+#   - it fails gracefully: on any DB error the demo keeps serving (deploy logging is non-critical)
+# Drawbacks:
+#   - shared-table coupling: two components (demo services and the Sentinel app) own one table, so a
+#     schema change needs both sides in agreement, and there is no API boundary to version/validate
+#   - the services reach the DB directly, so they need DATABASE_URL credentials in their env
+#    - no audit/authorization layer: any service could write a fake deploy row (demo-only posture,
+#   L2)
+#  Concept: the alternative is a deployment-ingestion API, which the Sentinel agent would POST to.
+# That
+#    gives a clean contract and centralizes validation, but it is another service to build, deploy
+#   and
+#   secure — overkill when the only consumer already sits on the same Postgres instance. This is the
+#   shared-database integration pattern: components trade a write to a common schema instead of an
+#   explicit interface, which is fast and simple in a demo but couples them at the schema level (the
+#    honest cost is the Drawbacks above). The Phase 2 alembic migration must therefore ADOPT this
+#   table
+#    (assert columns, not recreate) rather than assume ownership — the table is created idempotently
+#   here
+#    first. A Java engineer should read this as "a schema owned by two services, reconciled by
+#   adoption",
+#   at the opposite end of the spectrum from a well-factored service API.
+# See also: LEARN[08] (metrics), L2 in KNOWN_LIMITATIONS.md
 class DeployWriter:
     """Writes deploy events straight into the shared `deployments` table (see LEARN[09], D8).
 
@@ -195,6 +226,11 @@ class DeployWriter:
         try:
             with psycopg.connect(self.database_url, connect_timeout=5) as conn:
                 with conn.cursor() as cur:
+                    # CREATE TABLE IF NOT EXISTS is NOT concurrency-safe: three services starting
+                    # together can race on the table's identity sequence and one hits
+                    # `duplicate key (deployments_id_seq)` UniqueViolation. Serialize the DDL+p
+                    # with a transaction-scoped Postgres advisory lock (released on commit).
+                    cur.execute("SELECT pg_advisory_xact_lock(hashtext('sentinel.deployments'))")
                     cur.execute(
                         "CREATE TABLE IF NOT EXISTS deployments ("
                         " id bigserial PRIMARY KEY, service text NOT NULL, version text NOT NULL,"
@@ -295,6 +331,14 @@ def _emit(
     loki_pusher.push(record)
 
 
+def _bump_patch(version: str) -> str:
+    """Bump the last dotted version segment (e.g. 1.0.0 -> 1.0.1) for a simulated bad deploy."""
+    parts = version.split(".")
+    if parts and parts[-1].isdigit():
+        parts[-1] = str(int(parts[-1]) + 1)
+    return ".".join(parts)
+
+
 def create_app(service_name: str) -> FastAPI:
     """Build the toy FastAPI app for ``service_name`` (see PLAN.md Task 1.1)."""
     database_url = os.environ.get(
@@ -363,7 +407,7 @@ def create_app(service_name: str) -> FastAPI:
         duration = body.duration_seconds or DEFAULT_CHAOS_DURATION_SECONDS
         CHAOS.activate(body.type, duration)
         if body.type == "bad_deploy":
-            new_version = f"{version}.1"
+            new_version = _bump_patch(version)
             deploy_writer.record_bad_deploy(new_version)
         return {"chaos": body.type, "duration_seconds": duration, "service": service_name}
 

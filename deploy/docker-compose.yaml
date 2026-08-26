@@ -36,10 +36,55 @@ services:
       - "3100:3100"
     # Custom loki-config.yaml is mounted in Task 1.3; the image default config is used here.
 
+  orders:
+    build:
+      context: ../demo_stack
+    command: ["python", "-m", "services.orders"]
+    environment:
+      SERVICE_NAME: orders
+      DATABASE_URL: postgresql://sentinel:sentinel@postgres:5432/sentinel
+      LOKI_URL: http://loki:3100
+      SENTINEL_SERVICE_VERSION: 1.0.0
+    ports:
+      - "9001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payments:
+    build:
+      context: ../demo_stack
+    command: ["python", "-m", "services.payments"]
+    environment:
+      SERVICE_NAME: payments
+      DATABASE_URL: postgresql://sentinel:sentinel@postgres:5432/sentinel
+      LOKI_URL: http://loki:3100
+      SENTINEL_SERVICE_VERSION: 1.0.0
+    ports:
+      - "9002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  inventory:
+    build:
+      context: ../demo_stack
+    command: ["python", "-m", "services.inventory"]
+    environment:
+      SERVICE_NAME: inventory
+      DATABASE_URL: postgresql://sentinel:sentinel@postgres:5432/sentinel
+      LOKI_URL: http://loki:3100
+      SENTINEL_SERVICE_VERSION: 1.0.0
+    ports:
+      - "9003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   sentinel-api:
     profiles: ["api"]
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     environment:
       SENTINEL_DATABASE__URL: postgresql://sentinel:sentinel@postgres:5432/sentinel
