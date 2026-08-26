@@ -1,0 +1,51 @@
+# LEARN[02]: why this repo lives on the WSL2 native filesystem, not /mnt/c  (deep-dive — D17)
+# Why this way: the project root is ~/dev2/Sentinel on the ext4 volume *inside* the WSL2 VM.
+#   `/mnt/c/...` is a Windows drive mounted by the 9P file protocol, so every open/read/write
+#   syscall crosses the WSL2<->Windows VM boundary. Build/test tooling (uv sync, pytest
+#   collection, ruff) issues thousands of small file ops, and the 9P overhead is per-syscall —
+#   multiplicative, not a one-time setup cost. The Windows<->WSL2 boundary also silently
+#   rewrites line endings and drops the executable bit.
+# Good sides:
+#   - uv sync / pytest / ruff run at native ext4 speed (no 9P round-trip per file)
+#   - no CRLF translation: files stay LF, so shell scripts and git hooks keep working
+#   - POSIX mode bits survive, so scripts/*.sh and the pre-commit protocol hook keep +x
+# Drawbacks:
+#   - the repo is invisible to Windows-native tools that don't understand WSL paths
+#   - it lives entirely inside the WSL2 disk image (VHDX), so it is not in the Windows file tree
+#   - editing from Windows requires the editor's WSL remote mode, not a plain Windows path
+# Concept: /mnt/c is served by plan9 (9P), Microsoft's network-filesystem protocol used to
+#   expose Windows drives into WSL2. It is not a local block device: each syscall becomes a
+#   message round-trip to the host. ext4, by contrast, is the VM's own journaling filesystem —
+#   real metadata + data I/O with no IPC. Two Windows semantics bite us here. (1) CRLF: a
+#   Windows-global git config with core.autocrlf=true rewrites LF to CRLF on checkout and back
+#   on commit, which corrupts shell scripts and pre-commit hooks; we set core.autocrlf=false
+#   locally. (2) NTFS mode bits: NTFS has no POSIX execute bit, so files that should be
+#   executable silently lose +x when created on Windows; core.filemode=true makes git track
+#   mode-bit changes. Both are set explicitly locally to override any shared %USERPROFILE%
+#   .gitconfig leaking in from Windows. The pre-commit hook that runs the protocol checker is a
+#   shell script — if it lost LF or +x it would simply not run, making GW-1..GW-4 silently
+#   unenforced. That is why the location decision is load-bearing, not a taste preference.
+# See also: LEARN[01] (packaging/sync), and the GW-1..GW-4 clauses of the Working Protocol
+# --- ignore rules below ---
+# Python / uv
+.venv/
+.uv-cache/
+.uv-python/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# Env & secrets
+.env
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.cache/
+
+# OS / editor
+*.swp
+.DS_Store

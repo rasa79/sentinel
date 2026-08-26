@@ -1,0 +1,74 @@
+# LEARN[01]: uv + pyproject.toml as the Python packaging/sync model (for a Maven/Gradle engineer)
+# Why this way: uv is a single fast tool (written in Rust) that replaces pip + virtualenv +
+#   a lockfile manager, much like Maven/Gradle handle resolve+lock in the JVM world. We commit
+#   uv.lock so every environment (CI, coworkers, the demo stack) resolves the exact same
+#   versions; `uv run <cmd>` executes inside the project's private virtualenv. We never hand-
+#   activate a venv or keep a hand-curated requirements.txt.
+# Good sides:
+#   - one tool owns create + sync + lock + run; reproducible via committed uv.lock (no drift)
+#   - uv.lock is lockfile-first and cross-platform, so there is no "works on my machine" gap
+#   - solved in seconds even for a large graph; dev deps live in a dependency-groups block
+# Drawbacks:
+#   - uv is newer than pip, so some legacy CI images or vendored tooling still assume pip
+#   - a dependency bump rewrites uv.lock, which can be a noisy diff in code review
+#   - it constrains contributors to install uv (now bundled by many distros / easily via pipx)
+# Concept: Python packaging historically had three overlapping systems — setup.py (imperative
+#   build script), requirements.txt (a flat, often-unpinned list) and, since PEP 621,
+#   pyproject.toml (declarative metadata). pyproject.toml is the modern analogue of
+#   pom.xml/build.gradle.kts: it declares the project, its build backend, and its dependencies,
+#   and it is the single file tooling reads. uv then behaves like Maven's resolver + lockfile:
+#   it creates an isolated .venv, resolves the declared dependency ranges into a concrete graph,
+#   and writes uv.lock (a resolved snapshot) so the next `uv sync` reproduces it exactly.
+#   `requires-python` is the interpreter floor (like maven.compiler.release) and `uv run` is the
+#   wrapper that discovers the venv without you shelling out to activate. The [project.scripts]
+#   entry publishes a module callable as a console command through the entry-points mechanism.
+#   Committing the lockfile (and never hand-managing the venv) is what prevents the classic
+#   "it builds on my box" class of defect in a team repo.
+# See also: LEARN[02] (repo location + why not /mnt/c), LEARN[03] (config layering)
+[project]
+name = "sentinel"
+version = "0.1.0"
+description = "Agentic Incident Triage Assistant (SRE Copilot)"
+readme = "README.md"
+authors = [
+    { name = "rasa79", email = "rradivojevic@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "langgraph==1.2.11",
+    "langgraph-checkpoint-postgres==3.1.2",
+    "langchain-core==1.6.0",
+    "langchain-openai==1.6.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.15.0",
+    "fastapi==0.141.1",
+    "uvicorn==0.52.4",
+    "sse-starlette==3.4.8",
+    "httpx==0.28.1",
+    "psycopg[binary,pool]==3.3.4",
+    "pgvector==0.5.0",
+    "alembic==1.19.1",
+    "pyyaml==6.0.3",
+    "tenacity==9.1.4",
+    "docker==7.2.0",
+    "typer==0.27.1",
+    "rich==15.0.0",
+    "sentence-transformers==6.0.0",
+    "langsmith==0.11.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.16.4",
+    "mypy==2.3.1",
+    "pre-commit==4.6.2",
+]
+
+[project.scripts]
+sentinel = "sentinel.cli.main:app"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
