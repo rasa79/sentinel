@@ -14,7 +14,8 @@ instead; this is recorded as an environment note in the Phase 0 report.
 ## LLM setup (dual-provider smoke test)
 
 The smoke test (`scripts/smoke_llm.py`) drives the same `structured_call` loop (D1) against the
-configured provider. Provider is chosen by `LLM_PROVIDER=ollama|openai` (or `--provider`):
+configured provider. Provider is chosen by `LLM_PROVIDER=ollama|openai` (or `--provider`), and is
+honored whether it is set in the shell or in `.env`:
 
 **Local path (Ollama, default):**
 - Install Ollama and run it bound to all interfaces: `OLLAMA_HOST=0.0.0.0 ollama serve`.
@@ -28,7 +29,9 @@ configured provider. Provider is chosen by `LLM_PROVIDER=ollama|openai` (or `--p
 - Run: `uv run python scripts/smoke_llm.py --provider openai`.
 
 The script exits `0` on a valid structured object, `1` if the provider was reached but returned
-invalid output, and `2` with a clear message if the endpoint is unreachable.
+invalid output, and `2` with a clear message if the endpoint is unreachable. Unprefixed secrets
+(e.g. `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) may be placed in `.env`; the config model tolerates
+them (see `.env.example`).
 
 ## Known limitations
 

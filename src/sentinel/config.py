@@ -24,17 +24,19 @@
 #   the safe baseline (no secrets, sane demo defaults), while credentials and environment
 #   overrides arrive via SENTINEL_* env vars. Nested namespaces use `__` as the delimiter
 #   (e.g. SENTINEL_DATABASE__URL) so a dot-separated YAML tree maps onto env vars, and a
-#   leading SENTINEL_ prefix keeps our vars out of collision with unrelated daemons. Because
-#   the settings are a validated immutable object (not a dict of strings), a typo such as
-#   SENTINEL_DATABAS__URL is rejected instead of silently ignored. A convenience passthrough
-#   LLM_PROVIDER=ollama|openai maps directly onto llm.provider, so the smoke test and demo
-#   scripts can flip the provider without touching config.yaml.
+#   leading SENTINEL_ prefix keeps our vars out of collision with unrelated daemons. The root
+#   model is extra='ignore' so genuinely unprefixed secret vars (OPENAI_API_KEY / DEEPSEEK_API_KEY)
+#   may sit in .env without tripping validation, while the nested llm model is extra='forbid' so a
+#   typo inside that sub-model's keys is still rejected rather than silently dropped. A convenience
+#   passthrough LLM_PROVIDER=ollama|openai is preprocessed onto llm.provider, so the smoke test and
+#   demo scripts can flip the provider without touching config.yaml.
 # See also: LEARN[01] (packaging/sync), the D14 design decision in PLAN.md
 from __future__ import annotations
 
 import os
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -48,19 +50,12 @@ class LLMSettings(BaseModel):
 
     model_config = SettingsConfigDict(extra="forbid")
 
-    provider: str = "ollama"
+    provider: Literal["openai", "ollama"] = "ollama"
     model: str = "phi4-mini"
     base_url: str = "http://localhost:11434/v1"
     # Name (not value) of the env var holding the cloud API key; read by the provider factory.
     api_key_env: str = "OPENAI_API_KEY"
     temperature: float = 0.0
-
-    @field_validator("provider")
-    @classmethod
-    def _validate_provider(cls, value: str) -> str:
-        if value not in {"ollama", "openai"}:
-            raise ValueError(f"llm.provider must be 'ollama' or 'openai', got {value!r}")
-        return value
 
 
 class EmbeddingsSettings(BaseModel):
@@ -114,8 +109,10 @@ class Settings(BaseSettings):
     """Top-level typed settings object (D14).
 
     Precedence (highest → lowest): constructor args > SENTINEL_* env vars > `.env` file >
-    secret files > `config.yaml` > model defaults. ``LLM_PROVIDER`` is a convenience
-    passthrough that maps onto ``llm.provider`` and always wins over the resolved value.
+    secret files > `config.yaml` > model defaults. The root model is ``extra="ignore"`` so that
+    unprefixed secret vars (e.g. OPENAI_API_KEY) may live in `.env` without tripping validation;
+    the nested ``llm`` model stays ``extra="forbid"``. ``LLM_PROVIDER`` is a convenience
+    passthrough preprocessed onto ``llm.provider`` (always wins).
     """
 
     model_config = SettingsConfigDict(
@@ -123,7 +120,7 @@ class Settings(BaseSettings):
         env_prefix="SENTINEL_",
         env_nested_delimiter="__",
         yaml_file="config.yaml",
-        extra="forbid",
+        extra="ignore",
     )
 
     llm: LLMSettings = Field(default_factory=LLMSettings)
@@ -134,15 +131,30 @@ class Settings(BaseSettings):
     remediation: RemediationSettings = Field(default_factory=RemediationSettings)
     verification: VerificationSettings = Field(default_factory=VerificationSettings)
 
-    @field_validator("llm")
+    @model_validator(mode="before")
     @classmethod
-    def _llm_provider_passthrough(cls, value: LLMSettings) -> LLMSettings:
-        # LLM_PROVIDER is the documented convenience switch (no SENTINEL_ prefix); it always
-        # wins over whatever config.yaml / SENTINEL_LLM__PROVIDER resolved to.
+    def _apply_llm_provider_passthrough(cls, data: Any) -> Any:
+        # LLM_PROVIDER carries no SENTINEL_ prefix. pydantic-settings' EnvSettingsSource filters
+        # unprefixed vars out of `data`, but the DotEnvSettingsSource surfaces them as a flat
+        # lower-cased key `llm_provider`. So resolve the passthrough from os.environ (higher
+        # precedence) first, then from the dotenv data key. The model_validator runs after all
+        # sources merge but before field validation, so the passthrough always wins.
+        if not isinstance(data, dict):
+            return data
         passthrough = os.environ.get("LLM_PROVIDER")
-        if passthrough:
-            value.provider = passthrough
-        return value
+        dotenv_key = data.pop("llm_provider", None)
+        if passthrough is None:
+            passthrough = dotenv_key
+        if passthrough is None:
+            return data
+        llm = data.get("llm")
+        if isinstance(llm, dict):
+            llm["provider"] = passthrough
+        elif isinstance(llm, LLMSettings):
+            llm.provider = passthrough  # type: ignore[assignment]
+        else:
+            data["llm"] = {"provider": passthrough}
+        return data
 
     @classmethod
     def settings_customise_sources(
