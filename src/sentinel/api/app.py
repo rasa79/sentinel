@@ -48,4 +48,10 @@ def create_app(app_state: AppState | None = None) -> FastAPI:
     app.include_router(alerts_router)
     app.include_router(incidents_router)
     app.include_router(stream_router)
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        """Liveness probe for the containerized API (phase-5 gate check)."""
+        return {"status": "ok"}
+
     return app

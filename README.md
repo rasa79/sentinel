@@ -41,8 +41,20 @@ markers (`TODO(review)`) are enforced live by the pre-commit protocol checker.
 
 ## Demo (Phase 5 stub)
 
-With the stack up (`docker compose -f deploy/docker-compose.yaml --profile api up -d`) and the API
-running on `:8000`, the CLI drives the whole flow:
+Bring the full stack up (infra + the containerized API):
+
+```
+docker compose -f deploy/docker-compose.yaml --profile api up -d --build
+```
+
+Gate check (the container path, not just the in-process tests):
+
+- `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/health` → `200`.
+- `uv run sentinel demo` runs to a terminal status against the containerized API (injects a fault,
+  fires the webhook, waits for the human gate or a direct resolution, streams to `resolved`, prints
+  the final report).
+
+With the API up on `:8000`, the CLI also drives individual operations:
 
 - `uv run sentinel incidents list` — list incidents (optionally `--status`).
 - `uv run sentinel incidents show <id>` — an incident + ordered agent trace + graph state.

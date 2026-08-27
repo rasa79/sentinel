@@ -18,9 +18,12 @@ COPY alembic ./alembic
 COPY runbooks ./runbooks
 COPY README.md KNOWN_LIMITATIONS.md LEARN_INDEX.md ./
 
-# Install the project + prod dependencies (skip dev group).
+# Install the project + prod dependencies (skip dev group). `uv sync` targets the project venv
+# (.venv), so the runnable entry point MUST use that interpreter — the stock `python` on PATH is the
+# base image's interpreter, which never sees the installed dependencies (the "No module named
+# uvicorn" crash). This is the container-image analogue of `uv run`: always launch through the venv.
 RUN uv sync --no-dev --frozen
 
-# Runnable entry point via uvicorn (factory pattern).
+# Runnable entry point via uvicorn (factory pattern), inside the uv project venv.
 EXPOSE 8000
-CMD ["python", "-m", "uvicorn", "sentinel.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/python", "-m", "uvicorn", "sentinel.api.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]

@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import uuid
 from typing import Any
 
 import httpx
@@ -20,7 +21,14 @@ from rich.panel import Panel
 _DEFAULT_API = "http://localhost:8000"
 _DEFAULT_ORDERS_URL = "http://localhost:9001"
 _POLL_INTERVAL = 0.5
-_POLL_TIMEOUT = 60.0
+# The real DeepSeek call for hypothesize/remediate can take a while; don't race it with a short
+# poll window.
+_POLL_TIMEOUT = 180.0
+# Pause after injecting chaos so the fault is captured by the metrics/log pipelines before the graph
+# gathers evidence (a 5s scrape interval needs a couple of cycles to show a breach).
+_CHAOS_SETTLE_SECONDS = 8.0
+# Terminal statuses: the stream closes (and the graph has no more work) once one is reached.
+_TERMINAL_STATUSES = frozenset({"resolved", "rejected", "escalated"})
 
 
 class DemoError(RuntimeError):
@@ -129,20 +137,24 @@ def fire_alert(api: str, alertname: str, service: str, severity: str) -> str:
     return str(body["incident_id"])
 
 
-def _wait_status(api: str, incident_id: str, target: str, console: Console) -> None:
-    """Poll the incident status until it reaches ``target``. Raises DemoError on timeout."""
+def _wait_status(api: str, incident_id: str, targets: set[str], console: Console) -> str:
+    """Poll the incident status until it reaches any of ``targets``; return the reached status.
+
+    ``targets`` may contain ``awaiting_approval`` (the human gate) and/or terminal statuses, so the
+    demo can proceed whether the investigation pauses for a decision or completes on its own.
+    """
     url = f"{api.rstrip('/')}/incidents/{incident_id}"
     deadline = time.monotonic() + _POLL_TIMEOUT
     with httpx.Client(timeout=5) as client:
         while time.monotonic() < deadline:
             try:
-                body = client.get(url).json()
-                if body["incident"]["status"] == target:
-                    return
+                status = str(client.get(url).json()["incident"]["status"])
+                if status in targets:
+                    return status
             except (httpx.HTTPError, KeyError):
                 pass
             time.sleep(_POLL_INTERVAL)
-    raise DemoError(f"incident {incident_id} never reached {target!r}")
+    raise DemoError(f"incident {incident_id} never reached {sorted(targets)!r}")
 
 
 def run_demo(
@@ -159,10 +171,16 @@ def run_demo(
     base = api.rstrip("/")
 
     try:
-        # 1. Inject the fault and fire the webhook.
+        # 1. Inject the fault and fire the webhook. Give the fault a moment to reach the metrics/log
+        #    pipelines so the agent gathers evidence that supports an actionable finding (otherwise
+        #    the run may conclude "no action needed" and skip the approval gate).
         inject_chaos(service_url, chaos_type, duration_seconds)
         console.print(f"injected [bold]{chaos_type}[/bold] on [bold]{service}[/bold]")
-        incident_id = fire_alert(base, alertname, service, "critical")
+        time.sleep(_CHAOS_SETTLE_SECONDS)
+        # A unique alert name keeps repeated demo runs from colliding with the webhook's 60s
+        # (alertname, service) dedupe window — each run is its own incident.
+        alert_name = f"{alertname}-{uuid.uuid4().hex[:6]}"
+        incident_id = fire_alert(base, alert_name, service, "critical")
         console.print(f"webhook accepted — incident [bold]{incident_id}[/bold]")
 
         # 2. Tail the stream live in a background thread so the approval prompt can run at the
@@ -175,30 +193,35 @@ def run_demo(
         thread = threading.Thread(target=_watcher, daemon=True)
         thread.start()
 
-        # 3. Wait for the graph to reach the human approval gate.
-        _wait_status(base, incident_id, "awaiting_approval", console)
-        console.print(
-            Panel.fit(
-                "The investigation has paused for a human decision.",
-                title="Approval required",
-                border_style="yellow",
-            )
+        # 3. Wait for the graph to reach the human gate, or a terminal status if it found no action
+        #    to take. Only a run paused at the gate needs a human decision.
+        status = _wait_status(
+            base, incident_id, set(_TERMINAL_STATUSES) | {"awaiting_approval"}, console
         )
-        approved = _yes_no()
-        decision = "approve" if approved else "reject"
-        with httpx.Client(base_url=base, timeout=10) as client:
-            resp = client.post(f"/incidents/{incident_id}/{decision}")
-            resp.raise_for_status()
-        console.print(f"sent [bold]{decision}[/bold]; streaming to terminal status…")
+        if status == "awaiting_approval":
+            console.print(
+                Panel.fit(
+                    "The investigation has paused for a human decision.",
+                    title="Approval required",
+                    border_style="yellow",
+                )
+            )
+            approved = _yes_no()
+            decision = "approve" if approved else "reject"
+            with httpx.Client(base_url=base, timeout=10) as client:
+                resp = client.post(f"/incidents/{incident_id}/{decision}")
+                resp.raise_for_status()
+            console.print(f"sent [bold]{decision}[/bold]; streaming to terminal status…")
 
-        # 4. Let the watcher render the resume to completion, then summarize the final state.
+        # 4. Wait for the run to reach a terminal status, then summarize the final state.
+        terminal = _wait_status(base, incident_id, set(_TERMINAL_STATUSES), console)
         thread.join(timeout=_POLL_TIMEOUT)
         with httpx.Client(base_url=base, timeout=10) as client:
             summary = client.get(f"/incidents/{incident_id}").json()
         report = summary.get("state", {}).get("report") or {}
         console.print(
             Panel.fit(
-                f"status: {summary['incident']['status']}\n"
+                f"status: {terminal}\n"
                 f"summary: {report.get('summary', '') if isinstance(report, dict) else ''}",
                 title="Final report",
                 border_style="green",
