@@ -72,3 +72,4 @@ class AgentState(TypedDict, total=False):
     verification: VerificationResult | None
     report: IncidentReport | None
     errors: list[str]
+    escalate: bool

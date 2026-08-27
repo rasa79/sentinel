@@ -1,0 +1,3 @@
+{
+  "response": "{\"category\": \"latency_spike\", \"summary\": \"Orders service is slow\", \"severity\": \"high\", \"affected_service\": \"orders\", \"investigate\": true}"
+}

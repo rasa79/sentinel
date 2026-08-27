@@ -1,0 +1,3 @@
+{
+  "response": "{\"summary\": \"Orders degraded after a bad deploy and was restarted\", \"status\": \"resolved\", \"hypothesis\": null, \"remediation\": null}"
+}

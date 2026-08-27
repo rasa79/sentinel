@@ -1,0 +1,3 @@
+{
+  "response": "{\"action\": \"restart_service\", \"target_service\": \"orders\", \"params\": {}, \"rationale\": \"clear transient degraded state\"}"
+}

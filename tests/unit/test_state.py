@@ -25,6 +25,7 @@ def test_state_keys_match_spec() -> None:
         "verification",
         "report",
         "errors",
+        "escalate",
     }
     assert set(AgentState.__annotations__) == expected
 

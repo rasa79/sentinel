@@ -1,0 +1,3 @@
+{
+  "response": "{\"cause\": \"A faulty release was deployed\", \"confidence\": 0.85, \"evidence\": [\"http_errors_total climbing\"], \"affected_service\": \"orders\", \"references\": [\"runbook: bad-deploy-rollback\"]}"
+}
