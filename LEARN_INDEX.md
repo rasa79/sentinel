@@ -21,3 +21,4 @@ every code block must have a row here. Concept tags are used for the cross-refer
 | LEARN[13] | Retrieval: query-time embedding symmetry + score floor (QS-4 cross-ref to LEARN[12])                 | src/sentinel/rag/retrieve.py:1     | retrieval; cosine distance; top-k; score floor                    |
 | LEARN[14] | LangGraph state (TypedDict + reducers) vs a Spring workflow context object                            | src/sentinel/agent/state.py:1      | langgraph; state channels; reducers; checkpointing                 |
 | LEARN[15] | extra="forbid" as a contract boundary against LLM hallucination                                       | src/sentinel/agent/schemas.py:1    | pydantic; extra=forbid; LLM contract; DTO strictness              |
+| LEARN[16] | Prompt design for weak models: schema-in-prompt + few-shot + repair loop (QS-4 cross-ref)    | src/sentinel/prompts/__init__.py:1 | prompt design; few-shot; schema-in-prompt; prompt versioning      |
