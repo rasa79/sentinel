@@ -26,3 +26,4 @@ every code block must have a row here. Concept tags are used for the cross-refer
 | LEARN[18] | What interrupt() actually does at a node (D6 part 1 of 2)                                      | src/sentinel/agent/nodes/human_gate.py:1 | interrupt; cooperative suspension; graph suspend/resume; human task |
 | LEARN[19] | The Postgres checkpointer vs an in-memory saver (D5, deep-dive)                                    | src/sentinel/agent/graph.py:1      | checkpointer; checkpoint; thread_id; PostgresSaver; durability     |
 | LEARN[20] | interrupt/Command(resume) vs an API polling loop (D6, deep-dive)                                   | src/sentinel/agent/graph.py:38     | resumable suspension; polling; single-writer; BPMN wait-state      |
+| LEARN[21] | Retry policy design: 3 attempts + exponential backoff, transient-only (D9)                          | src/sentinel/tools/loki.py:1       | retry; backoff; transient vs permanent; tenacity; httpx            |
