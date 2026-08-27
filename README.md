@@ -54,6 +54,22 @@ Gate check (the container path, not just the in-process tests):
   fires the webhook, waits for the human gate or a direct resolution, streams to `resolved`, prints
   the final report).
 
+### Container config (env + URLs)
+
+The API container gets its secrets and host-vs-container URLs from `deploy/docker-compose.yaml`:
+
+- **Secret (never committed):** `env_file: ../.env` injects the repo-root `.env` (gitignored) into
+  the container, so the LLM API key reaches the API. Compose's own `.env` auto-loading is for var
+  **substitution** only and does *not* ship vars into the container — without `env_file:` the API
+  builds a keyless OpenAI client and crashes with `Missing credentials`.
+- **URL resolution (D4):** the demo/CLI runs on the **host** and reaches the infra via
+  `localhost`/`900x` and the API via `localhost:8000`; the **container** reaches the same services
+  by their compose service names. The `environment:` block therefore sets the container-appropriate
+  URLs (`postgres:5432`, `loki:3100`, `prometheus:9090`). The LLM defaults to a public
+  OpenAI-compatible endpoint; for a **local Ollama** model the container `base_url` must be
+  `http://host.docker.internal:11434/v1` (see `extra_hosts`, LEARN[06]), whereas the host CLI uses
+  `http://localhost:11434/v1`.
+
 With the API up on `:8000`, the CLI also drives individual operations:
 
 - `uv run sentinel incidents list` — list incidents (optionally `--status`).

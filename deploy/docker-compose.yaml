@@ -90,17 +90,32 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+    # Inject the repo-root .env (gitignored) so the container gets the LLM API key and any
+    # provider overrides. Compose's own `.env` auto-loading is for VAR SUBSTITUTION only — it does
+    # NOT ship vars into the container, so without `env_file:` the API would build a keyless
+    # OpenAI client and crash ("Missing credentials"). The file is gitignored, so no secret enters
+    # the repo. `environment:` below still overrides env_file for the container-specific URLs.
+    env_file: ../.env
     environment:
+      # Container vs host URL resolution (D4): the demo/CLI runs on the HOST and uses
+      # localhost/900x for the infra + `localhost:8000` for the API; the CONTAINER reaches those
+      # same services by their compose service names. So the API container MUST be given the
+      # container-appropriate URLs here (these override any localhost defaults):
       SENTINEL_DATABASE__URL: postgresql://sentinel:sentinel@postgres:5432/sentinel
       SENTINEL_LOKI__URL: http://loki:3100
       SENTINEL_PROMETHEUS__URL: http://prometheus:9090
-      # LLM: hosted OpenAI-compatible (override via env from .env) or local Ollama. The DeepSeek
-      # key/base_url are provided at deploy time via the environment (never committed).
+      # LLM: a public OpenAI-compatible endpoint (DeepSeek) works identically from host and
+      # container, so it is the safe default. For a LOCAL Ollama model instead, override the
+      # provider AND the base_url to reach the host-side server: the base_url inside the container
+      # must be `http://host.docker.internal:11434/v1` (see the extra_hosts below, D4), while the
+      # host CLI uses `http://localhost:11434/v1`. The API key name is a reference — the real key
+      # comes from `env_file: ../.env` (DEEPSEEK_API_KEY). Never hardcode a secret here.
+      # This host-vs-container URL split is the D4 class of issue — see LEARN[06] for the
+      # host.docker.internal/first-party reasoning.
       SENTINEL_LLM__PROVIDER: openai
       SENTINEL_LLM__MODEL: deepseek-v4-flash
       SENTINEL_LLM__BASE_URL: https://api.deepseek.com
       SENTINEL_LLM__API_KEY_ENV: DEEPSEEK_API_KEY
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
