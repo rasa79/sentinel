@@ -94,6 +94,13 @@ services:
       SENTINEL_DATABASE__URL: postgresql://sentinel:sentinel@postgres:5432/sentinel
       SENTINEL_LOKI__URL: http://loki:3100
       SENTINEL_PROMETHEUS__URL: http://prometheus:9090
+      # LLM: hosted OpenAI-compatible (override via env from .env) or local Ollama. The DeepSeek
+      # key/base_url are provided at deploy time via the environment (never committed).
+      SENTINEL_LLM__PROVIDER: openai
+      SENTINEL_LLM__MODEL: deepseek-v4-flash
+      SENTINEL_LLM__BASE_URL: https://api.deepseek.com
+      SENTINEL_LLM__API_KEY_ENV: DEEPSEEK_API_KEY
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
