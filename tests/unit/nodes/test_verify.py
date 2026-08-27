@@ -6,20 +6,20 @@ from sentinel.agent.nodes.verify import verify
 from sentinel.agent.schemas import MetricFinding
 
 
-async def test_verify_resolved_when_no_breach(alert, monkeypatch) -> None:
+def test_verify_resolved_when_no_breach(alert, monkeypatch) -> None:
     monkeypatch.setattr(
         "sentinel.agent.nodes.verify.instant_query",
         lambda expr: [MetricFinding(metric="x", value=0.0, breach=False)],
     )
-    update = await verify({"incident_id": "i1", "alert": alert}, make_config())
+    update = verify({"incident_id": "i1", "alert": alert}, make_config())
     assert update["verification"].resolved is True
 
 
-async def test_verify_not_resolved_when_breaching(alert, monkeypatch) -> None:
+def test_verify_not_resolved_when_breaching(alert, monkeypatch) -> None:
     monkeypatch.setattr(
         "sentinel.agent.nodes.verify.instant_query",
         lambda expr: [MetricFinding(metric="x", value=5.0, breach=True)],
     )
-    update = await verify({"incident_id": "i1", "alert": alert}, make_config())
+    update = verify({"incident_id": "i1", "alert": alert}, make_config())
     assert update["verification"].resolved is False
     assert update["verification"].values == [5.0]

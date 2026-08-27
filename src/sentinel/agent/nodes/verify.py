@@ -11,7 +11,7 @@ from sentinel.agent.state import AgentState
 from sentinel.tools.prometheus import instant_query
 
 
-async def verify(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def verify(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Re-check the alerting PromQL expression; resolved if nothing is breaching (D15)."""
     expr = config["configurable"].get("verify_expr", "rate(http_errors_total[5m])")
     findings = instant_query(expr)

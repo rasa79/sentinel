@@ -39,7 +39,7 @@ from sentinel.llm.structured import structured_call
 from sentinel.prompts.triage import build_triage_prompt
 
 
-async def triage(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def triage(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Classify the alert into an initial triage and set the affected service."""
     llm = config["configurable"]["llm"]
     alert = state["alert"]

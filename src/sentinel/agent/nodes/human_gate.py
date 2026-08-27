@@ -40,7 +40,7 @@ from langgraph.types import interrupt
 from sentinel.agent.state import AgentState
 
 
-async def human_gate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def human_gate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Suspend for a human decision on the proposed remediation (D6)."""
     proposal = state.get("remediation")
     payload = {

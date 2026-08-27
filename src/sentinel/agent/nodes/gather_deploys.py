@@ -10,7 +10,7 @@ from sentinel.agent.state import AgentState
 from sentinel.tools.deploys import query_deploys
 
 
-async def gather_deploys(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def gather_deploys(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Fetch recent deploy events for the affected service."""
     service = state["alert"].service
     deploys = query_deploys(service, limit=20)

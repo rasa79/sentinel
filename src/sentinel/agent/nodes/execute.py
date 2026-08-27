@@ -10,7 +10,7 @@ from sentinel.agent.state import AgentState
 from sentinel.tools.executor import execute as run_executor
 
 
-async def execute(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def execute(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Execute the approved remediation (dry-run aware, D11)."""
     remediation = state.get("remediation")
     if remediation is None:

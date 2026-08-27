@@ -11,7 +11,7 @@ from sentinel.agent.state import AgentState
 from sentinel.tools.loki import query_logs
 
 
-async def gather_logs(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def gather_logs(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Fetch recent log lines for the affected service."""
     service = state["alert"].service
     logs = query_logs(service, since=timedelta(minutes=15), limit=100)

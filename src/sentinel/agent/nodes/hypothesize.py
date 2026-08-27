@@ -25,7 +25,7 @@ def _evidence_summary(state: AgentState) -> str:
     return " | ".join(parts)
 
 
-async def hypothesize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def hypothesize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Build a root-cause hypothesis from the gathered evidence."""
     llm = config["configurable"]["llm"]
     prompt = build_hypothesis_prompt(_evidence_summary(state))

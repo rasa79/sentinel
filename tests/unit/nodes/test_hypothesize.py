@@ -6,7 +6,7 @@ from sentinel.agent.nodes.hypothesize import hypothesize
 from sentinel.agent.schemas import RootCauseHypothesis
 
 
-async def test_hypothesize_parses_fake_llm(alert) -> None:
+def test_hypothesize_parses_fake_llm(alert) -> None:
     config = make_config(load_response("hypothesis_ok.json"))
     state = {
         "incident_id": "i1",
@@ -16,13 +16,13 @@ async def test_hypothesize_parses_fake_llm(alert) -> None:
         "deploys": [],
         "runbooks": [],
     }
-    update = await hypothesize(state, config)
+    update = hypothesize(state, config)
     assert isinstance(update["hypothesis"], RootCauseHypothesis)
     assert update["hypothesis"].affected_service == "orders"
 
 
-async def test_hypothesize_with_empty_evidence(alert) -> None:
+def test_hypothesize_with_empty_evidence(alert) -> None:
     config = make_config(load_response("hypothesis_ok.json"))
     state = {"incident_id": "i1", "alert": alert}
-    update = await hypothesize(state, config)
+    update = hypothesize(state, config)
     assert update["hypothesis"].cause.startswith("A faulty release")

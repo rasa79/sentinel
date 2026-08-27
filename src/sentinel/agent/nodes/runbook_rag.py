@@ -10,7 +10,7 @@ from sentinel.agent.state import AgentState
 from sentinel.rag.retrieve import retrieve_runbooks
 
 
-async def runbook_rag(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def runbook_rag(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Retrieve runbook hits for the affected service + symptom, to constrain the hypothesis."""
     service = state["alert"].service
     symptom = f"{state['alert'].name} on {service}"

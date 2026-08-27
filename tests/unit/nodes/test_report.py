@@ -6,14 +6,14 @@ from sentinel.agent.nodes.report import report
 from sentinel.agent.schemas import IncidentReport, RemediationProposal, RootCauseHypothesis
 
 
-async def test_report_parses_fake_llm(alert) -> None:
+def test_report_parses_fake_llm(alert) -> None:
     config = make_config(load_response("report_ok.json"))
-    update = await report({"incident_id": "i1", "alert": alert}, config)
+    update = report({"incident_id": "i1", "alert": alert}, config)
     assert isinstance(update["report"], IncidentReport)
     assert update["report"].status == "resolved"
 
 
-async def test_report_with_rich_state(alert) -> None:
+def test_report_with_rich_state(alert) -> None:
     config = make_config(load_response("report_ok.json"))
     hypothesis = RootCauseHypothesis(
         cause="faulty release", confidence=0.8, evidence=[], affected_service="orders"
@@ -28,5 +28,5 @@ async def test_report_with_rich_state(alert) -> None:
         "remediation": remediation,
         "approval": True,
     }
-    update = await report(state, config)
+    update = report(state, config)
     assert update["report"].status == "resolved"

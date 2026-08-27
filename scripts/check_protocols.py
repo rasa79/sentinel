@@ -81,6 +81,9 @@ def _scan_learn_blocks() -> list[dict[str, object]]:
             fields: set[str] = set()
             i += 1
             while i < len(lines) and lines[i].startswith("#"):
+                # A new LEARN header starts the next block even if comments are contiguous.
+                if _LEARN_HEADER_RE.match(lines[i]):
+                    break
                 fm = _FIELD_RE.match(lines[i])
                 if fm:
                     fields.add(fm.group(1))

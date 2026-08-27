@@ -22,7 +22,7 @@ def _hypothesis_summary(hypothesis: RootCauseHypothesis) -> str:
     return " | ".join(lines)
 
 
-async def remediate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def remediate(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Propose remediation; enforce whitelist + confidence floor (else no_action + escalate)."""
     llm = config["configurable"]["llm"]
     settings = config["configurable"].get("settings") or Settings()

@@ -26,7 +26,7 @@ def _incident_summary(state: AgentState) -> str:
     return " | ".join(parts)
 
 
-async def report(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+def report(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """Produce the final IncidentReport."""
     llm = config["configurable"]["llm"]
     prompt = build_report_prompt(_incident_summary(state))

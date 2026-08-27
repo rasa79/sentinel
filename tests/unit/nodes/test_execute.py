@@ -16,7 +16,7 @@ def _state(alert) -> dict:
     }
 
 
-async def test_execute_calls_executor_with_dry_run(alert, monkeypatch) -> None:
+def test_execute_calls_executor_with_dry_run(alert, monkeypatch) -> None:
     calls: list[tuple] = []
 
     def _run(action, target, params, dry_run):
@@ -24,11 +24,11 @@ async def test_execute_calls_executor_with_dry_run(alert, monkeypatch) -> None:
         return ExecutionResult(action=action, target_service=target, dry_run=dry_run, status="ok")
 
     monkeypatch.setattr("sentinel.agent.nodes.execute.run_executor", _run)
-    update = await execute(_state(alert), make_config(dry_run=True))
+    update = execute(_state(alert), make_config(dry_run=True))
     assert update["execution"].dry_run is True
     assert calls[0] == ("restart_service", "orders", True)
 
 
-async def test_execute_no_remediation(alert) -> None:
-    update = await execute({"incident_id": "i1", "alert": alert}, make_config())
+def test_execute_no_remediation(alert) -> None:
+    update = execute({"incident_id": "i1", "alert": alert}, make_config())
     assert update["execution"] is None
