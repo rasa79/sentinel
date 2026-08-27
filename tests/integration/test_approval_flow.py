@@ -1,4 +1,4 @@
-"""Integration test for the alert webhook (Task 5.1): create + dedupe + graph start.
+"""Integration test for the approval endpoints (Task 5.3): alert -> awaiting_approval -> approve.
 
 Requires the compose stack + DB. Marked ``integration``.
 """
@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,7 @@ from langchain_core.messages import AIMessage
 from sentinel.api.app import create_app
 from sentinel.api.deps import AppState
 from sentinel.config import Settings
-from sentinel.db.models import Incident
+from sentinel.db.models import AgentEvent, Incident
 from sentinel.db.session import create_engine_from_url, make_session_factory
 
 pytestmark = pytest.mark.integration
@@ -48,13 +49,15 @@ def _make_state(llm: Any, settings: Settings) -> AppState:
 
     engine = create_engine_from_url(settings.database.url)
     session_factory = make_session_factory(engine)
-    graph = build_graph(make_checkpointer(settings.database.url))
+    checkpointer = make_checkpointer(settings.database.url)
+    graph = build_graph(checkpointer)
     return AppState(
         settings=settings,
         session_factory=session_factory,
         graph=graph,
         event_bus=EventBus(session_factory=session_factory),
         llm=llm,
+        checkpointer=checkpointer,
     )
 
 
@@ -72,8 +75,12 @@ def _make_llm() -> RoutingFakeLLM:
 def _alert(name: str) -> dict[str, Any]:
     return {
         "status": "firing",
-        "labels": {"alertname": name, "service": "orders", "severity": "critical"},
-        "annotations": {"summary": "orders error rate high"},
+        "labels": {
+            "alertname": name,
+            "service": "payments",
+            "severity": "critical",
+        },
+        "annotations": {"summary": "payments approval-flow test"},
     }
 
 
@@ -83,9 +90,26 @@ async def _status(state: AppState, incident_id: str) -> str:
         return incident.status if incident else "missing"
 
 
-async def _cleanup(state: AppState, incident_id: str) -> None:
-    from sentinel.db.models import AgentEvent
+async def _wait_for(state: AppState, incident_id: str, target: str, max_wait: float = 30.0) -> None:
+    deadline = time.monotonic() + max_wait
+    while time.monotonic() < deadline:
+        if await _status(state, incident_id) == target:
+            return
+        await asyncio.sleep(0.5)
+    raise AssertionError(f"incident {incident_id} never reached {target!r}")
 
+
+async def _wait_terminal(state: AppState, incident_id: str, max_wait: float = 30.0) -> None:
+    terminal = {"resolved", "escalated", "rejected"}
+    deadline = time.monotonic() + max_wait
+    while time.monotonic() < deadline:
+        if await _status(state, incident_id) in terminal:
+            return
+        await asyncio.sleep(0.5)
+    raise AssertionError(f"incident {incident_id} never reached a terminal status")
+
+
+async def _cleanup(state: AppState, incident_id: str) -> None:
     with state.session_factory() as session:
         session.query(AgentEvent).filter(AgentEvent.incident_id == uuid.UUID(incident_id)).delete()
         incident = session.get(Incident, uuid.UUID(incident_id))
@@ -94,32 +118,32 @@ async def _cleanup(state: AppState, incident_id: str) -> None:
         session.commit()
 
 
-async def test_webhook_creates_dedupes_and_runs_graph() -> None:
+async def test_approval_flow_end_to_end() -> None:
     settings = Settings(_env_file=os.devnull)
     state = _make_state(_make_llm(), settings)
     app = create_app(state)
-    # A unique alertname keeps this test's incident isolated from other tests / leftover state.
-    alertname = f"AlertFlow-{uuid.uuid4().hex[:8]}"
+    alertname = f"ApprovalFlow-{uuid.uuid4().hex[:8]}"
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        r1 = await client.post("/alerts/webhook", json={"alerts": [_alert(alertname)]})
-        assert r1.status_code == 202
-        id1 = r1.json()["incident_id"]
+        r = await client.post("/alerts/webhook", json={"alerts": [_alert(alertname)]})
+        assert r.status_code == 202
+        incident_id = r.json()["incident_id"]
+        await _wait_for(state, incident_id, "awaiting_approval")
 
-        # Dedupe: a duplicate alertname+service reuses the incident.
-        r2 = await client.post("/alerts/webhook", json={"alerts": [_alert(alertname)]})
-        assert r2.status_code == 202
-        assert r2.json()["incident_id"] == id1
+        ar = await client.post(f"/incidents/{incident_id}/approve")
+        assert ar.status_code == 202
+        await _wait_terminal(state, incident_id)
 
-    # The background graph run should reach the human_gate interrupt -> awaiting_approval.
-    reached = False
-    for _ in range(120):
-        await asyncio.sleep(0.5)
-        if await _status(state, id1) == "awaiting_approval":
-            reached = True
-            break
-    assert reached, "graph did not reach awaiting_approval"
+        gr = await client.get(f"/incidents/{incident_id}")
+        body = gr.json()
+        # execute ran in dry-run, then verify + report.
+        assert body["state"]["execution"]["dry_run"] is True
+        assert body["state"]["verification"] is not None
+        assert body["state"]["report"]["status"] == "resolved"
 
-    # Clean up so repeated runs stay isolated.
-    await _cleanup(state, id1)
+        # Approving an already-terminal incident must be a 409.
+        r409 = await client.post(f"/incidents/{incident_id}/approve")
+        assert r409.status_code == 409
+
+    await _cleanup(state, incident_id)

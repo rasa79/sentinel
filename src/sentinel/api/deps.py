@@ -92,7 +92,8 @@ async def resume_investigation(state: AppState, incident_id: str, approved: bool
 
     def _run() -> None:
         result = state.graph.invoke(Command(resume={"approved": approved}), config)
-        _set_incident_status(state, incident_id, _derive_status(result))
+        status = "rejected" if not approved else _derive_status(result)
+        _set_incident_status(state, incident_id, status)
 
     await asyncio.to_thread(_run)
 

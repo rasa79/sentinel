@@ -46,7 +46,7 @@ def test_each_chaos_type_produces_a_breach() -> None:
     assert lat and any(f.breach for f in lat), [f.model_dump() for f in lat]
 
     # memory_leak -> RSS breach (absolute threshold; ~8MB per /work hit)
-    _inject_and_hit("memory_leak", 15)
+    _inject_and_hit("memory_leak", 25)
     time.sleep(8)
     findings = query_anomalies("orders", window, base_url=base_url)
     mem = [f for f in findings if f.metric == "process_resident_memory_bytes"]

@@ -1,14 +1,19 @@
-"""Incident read + approval endpoints (PLAN.md Tasks 5.2/5.3)."""
+"""Incident read + approval endpoints (PLAN.md Tasks 5.2/5.3).
+
+The approval endpoints resume the graph through the checkpointer (D6). See LEARN[26] for the
+API-side reasoning; the deep-dive on interrupt vs polling is in LEARN[20].
+"""
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from sentinel.api.deps import AppState
+from sentinel.api.deps import AppState, resume_investigation
 from sentinel.db.models import AgentEvent, Incident
 
 router = APIRouter()
@@ -53,7 +58,7 @@ def _state_summary(state: AppState, incident_id: str) -> dict[str, Any]:
     cp = state.checkpointer.get({"configurable": {"thread_id": incident_id}})
     if cp is None:
         return {}
-    channel_values = (cp.checkpoint or {}).get("channel_values", {})
+    channel_values = cp.get("channel_values", {})
     keys = [
         "triage",
         "hypothesis",
@@ -122,3 +127,58 @@ async def get_incident(incident_id: UUID, request: Request) -> dict[str, Any]:
         "events": event_trace,
         "state": _state_summary(state, str(incident_id)),
     }
+
+
+#  LEARN[26]: resume through the checkpointer, the 409 guard, and concurrent approvals (QS-4
+# cross-ref)
+#  Why this way: approve/reject resume the graph with Command(resume=...) into the checkpointer,
+# guard
+#   with a 409 when the incident is not awaiting_approval, and run the resume on a background task.
+#   This is a cross-reference stub: the interrupt-vs-polling deep-dive is in LEARN[20].
+# Good sides:
+#   - resume goes through the same checkpoint the graph yielded at, so an in-memory graph handle is
+#     never needed (a process restart is transparent); D6
+#    - the 409 guard maps to the "pending interrupt" state, so approving a non-pending incident is
+#   409
+# Drawbacks:
+#    - a concurrent approve/reject races: the checkpointer is a single writer, so the last resume
+#   wins
+#   - the 409 check is a read-then-act, not atomic, so two rapid approvals can both pass the guard
+#  Concept: LangGraph persists the interrupt in the checkpoint (LEARN[19]); resume() replays from
+# there
+#   by re-entering the graph with the same thread_id and Command(resume=...). The API never holds a
+#    graph object; it only knows the incident id and re-invokes the graph over the checkpointer,
+#   which is
+#    exactly what lets a restarted API process resume a pending approval (no orphaned in-memory
+#   state).
+#   The 409 maps to the interrupt state: an incident that is NOT awaiting_approval has no pending
+#    interrupt, so a resume would be meaningless (or would replay the wrong state). Two approvals
+#   racing:
+#    both may pass the guard's read, but the checkpointer serializes them as single-writer, so the
+#   last
+#    one wins — the classic "optimistic but not atomic" trade-off, acceptable because a human
+#   decision is
+#   rare and the checkpointer gives last-writer semantics.
+# See also: LEARN[20] (interrupt vs polling), LEARN[19] (checkpointer), the D6 section in PLAN.md
+def _resume(request: Request, incident_id: UUID, approved: bool) -> dict[str, str]:
+    state: AppState = request.app.state.sentinel
+    with state.session_factory() as session:
+        incident = session.get(Incident, incident_id)
+        if incident is None:
+            raise HTTPException(status_code=404, detail="incident not found")
+        if incident.status != "awaiting_approval":
+            raise HTTPException(status_code=409, detail="incident is not awaiting approval")
+    asyncio.create_task(resume_investigation(state, str(incident_id), approved))
+    return {"incident_id": str(incident_id), "status": "approving" if approved else "rejecting"}
+
+
+@router.post("/incidents/{incident_id}/approve", status_code=202)
+async def approve_incident(incident_id: UUID, request: Request) -> dict[str, str]:
+    """Resume the interrupted graph with an approval."""
+    return _resume(request, incident_id, approved=True)
+
+
+@router.post("/incidents/{incident_id}/reject", status_code=202)
+async def reject_incident(incident_id: UUID, request: Request) -> dict[str, str]:
+    """Resume the interrupted graph with a rejection (routes to report as rejected)."""
+    return _resume(request, incident_id, approved=False)

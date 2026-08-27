@@ -31,3 +31,4 @@ every code block must have a row here. Concept tags are used for the cross-refer
 | LEARN[23] | Whitelist + dry-run in the executor: the capability gate for agent actions (D11, deep-dive)      | src/sentinel/tools/executor.py:1   | capability gating; whitelist; dry-run; docker socket; authorization |
 | LEARN[24] | Background asyncio task vs a task queue (Celery/Temporal) for the investigation run               | src/sentinel/api/routes_alerts.py:1 | asyncio task; task queue; fire-and-forget; durability; retry       |
 | LEARN[25] | Alertmanager v4 webhook payload and the dedupe choice                                              | src/sentinel/api/routes_alerts.py:32 | alertmanager; webhook; labels; dedupe; idempotency key             |
+| LEARN[26] | Resume through the checkpointer, the 409 guard, and concurrent approvals (QS-4 cross-ref)       | src/sentinel/api/routes_incidents.py:132 | approval; resume; 409 guard; checkpoint; concurrency/race           |
