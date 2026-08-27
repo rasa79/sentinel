@@ -39,6 +39,21 @@ Pre-declared scope cuts and known weaknesses are tracked in
 [`KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) (user-visible items are summarized below). Review
 markers (`TODO(review)`) are enforced live by the pre-commit protocol checker.
 
+## Demo (Phase 5 stub)
+
+With the stack up (`docker compose -f deploy/docker-compose.yaml --profile api up -d`) and the API
+running on `:8000`, the CLI drives the whole flow:
+
+- `uv run sentinel incidents list` — list incidents (optionally `--status`).
+- `uv run sentinel incidents show <id>` — an incident + ordered agent trace + graph state.
+- `uv run sentinel incidents approve <id>` / `reject <id>` — resume a pending approval (D6).
+- `uv run sentinel incidents watch <id>` — tail the SSE stream of node-by-node updates live.
+- `uv run sentinel demo` — inject a fault, fire the webhook, wait for approval, approve, watch to a
+  terminal status, and print the final report.
+
+The `demo` command currently orchestrates the Phase-5 flow against one running service (default
+`orders` at `http://localhost:9001`); Phase 8 polishes it into the full scripted walkthrough.
+
 ## Runbook ingestion (RAG)
 
 `uv run sentinel ingest-runbooks` chunks the `runbooks/` corpus (whole doc + per-`##`-section
