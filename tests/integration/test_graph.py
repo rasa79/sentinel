@@ -5,7 +5,6 @@ Requires ``docker compose up -d postgres``. Marked ``integration``.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import uuid
@@ -142,7 +141,7 @@ def test_interrupt_resume_roundtrip_through_real_checkpointer(
 
     # 3. EventBus persistence to agent_events (D10).
     bus = EventBus(session_factory=session_factory)
-    asyncio.run(bus.emit(str(incident_id), "report", "report_complete", {"status": "resolved"}))
+    bus.emit(str(incident_id), "report", "report_complete", {"status": "resolved"})
     with session_factory() as session:
         rows = session.query(AgentEvent).filter(AgentEvent.incident_id == incident_id).all()
         assert len(rows) >= 1

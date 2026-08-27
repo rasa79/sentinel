@@ -65,6 +65,18 @@ def _derive_status(state: AgentState) -> str:
     return "investigating"
 
 
+def _serialize(value: Any) -> Any:
+    if value is None:
+        return None
+    if hasattr(value, "model_dump"):
+        return value.model_dump()
+    if isinstance(value, dict):
+        return {k: _serialize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_serialize(v) for v in value]
+    return value
+
+
 def _set_incident_status(state: AppState, incident_id: str, status: str) -> None:
     from sentinel.db.models import Incident
 
@@ -75,24 +87,51 @@ def _set_incident_status(state: AppState, incident_id: str, status: str) -> None
             session.commit()
 
 
-async def start_investigation(state: AppState, incident_id: str, alert: AlertInfo) -> None:
-    """Run the graph to (or past) the human_gate interrupt on a worker thread."""
+def _final_state(state: AppState, incident_id: str) -> AgentState:
+    """Read the latest checkpoint's channel values (the reduced graph state)."""
+    if state.checkpointer is None:
+        return {}
+    cp = state.checkpointer.get({"configurable": {"thread_id": incident_id}})
+    return cp.get("channel_values", {}) if cp else {}
+
+
+def _stream_and_emit(state: AppState, incident_id: str, graph_input: Any) -> bool:
+    """Run the graph, emitting per-node events (D10). True if it suspended at an interrupt."""
     config = make_config(state, incident_id)
+    interrupted = False
+    for chunk in state.graph.stream(graph_input, config, stream_mode="updates"):
+        for node, update in chunk.items():
+            if node == "__interrupt__":
+                interrupted = True
+                continue
+            if not isinstance(update, dict):
+                continue
+            payload = {k: _serialize(v) for k, v in update.items()}
+            state.event_bus.emit(incident_id, node, "node_update", payload)
+    return interrupted
+
+
+async def start_investigation(state: AppState, incident_id: str, alert: AlertInfo) -> None:
+    """Run the graph to (or past) the human_gate interrupt, emitting node events, in a thread."""
 
     def _run() -> None:
-        result = state.graph.invoke({"incident_id": str(incident_id), "alert": alert}, config)
-        _set_incident_status(state, incident_id, _derive_status(result))
+        interrupted = _stream_and_emit(
+            state, incident_id, {"incident_id": str(incident_id), "alert": alert}
+        )
+        status = (
+            "awaiting_approval" if interrupted else _derive_status(_final_state(state, incident_id))
+        )
+        _set_incident_status(state, incident_id, status)
 
     await asyncio.to_thread(_run)
 
 
 async def resume_investigation(state: AppState, incident_id: str, approved: bool) -> None:
-    """Resume an interrupted graph with the human decision on a worker thread."""
-    config = make_config(state, incident_id)
+    """Resume interrupted graph with the human decision, emitting node events, in a thread."""
 
     def _run() -> None:
-        result = state.graph.invoke(Command(resume={"approved": approved}), config)
-        status = "rejected" if not approved else _derive_status(result)
+        _stream_and_emit(state, incident_id, Command(resume={"approved": approved}))
+        status = "rejected" if not approved else _derive_status(_final_state(state, incident_id))
         _set_incident_status(state, incident_id, status)
 
     await asyncio.to_thread(_run)
