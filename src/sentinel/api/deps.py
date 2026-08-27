@@ -34,6 +34,7 @@ class AppState:
     graph: Any
     event_bus: EventBus
     llm: BaseChatModel
+    checkpointer: Any = None
 
 
 def make_config(state: AppState, incident_id: str) -> dict[str, Any]:
@@ -109,4 +110,5 @@ def build_app_state(settings: Settings | None = None) -> AppState:
         graph=graph,
         event_bus=EventBus(session_factory=session_factory),
         llm=get_chat_model(settings),
+        checkpointer=checkpointer,
     )
