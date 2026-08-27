@@ -54,3 +54,10 @@
 - **Where partial coverage lives:** none (component `src/sentinel/evals` not yet created).
 - **TODO(review):** move this marker into `src/sentinel/evals/harness.py` when the eval harness
   exists (Phase 7) and confirm the no-op guard.
+
+## L7 — scale_replicas is partially emulated on plain Docker (user-visible)
+
+- **What this means:** `scale_replicas` cannot dynamically scale via compose v2; it restarts any
+  named replica containers that already exist and otherwise returns `not_applicable`.
+- **Where partial coverage lives:** the review marker is in `src/sentinel/tools/executor.py` (the
+  `_scale` path); the limitation is enforced there.

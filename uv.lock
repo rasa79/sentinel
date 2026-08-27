@@ -2217,6 +2217,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
+    { name = "types-docker" },
 ]
 
 [package.metadata]
@@ -2250,6 +2251,7 @@ dev = [
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-asyncio", specifier = "==1.4.0" },
     { name = "ruff", specifier = "==0.16.4" },
+    { name = "types-docker", specifier = ">=7.2.0.20260819" },
 ]
 
 [[package]]
@@ -2558,6 +2560,31 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ae/40/4a3db7990d1f62a53182aa96eaef57aeb2886a27f90a195bc66713565d31/typer-0.27.1.tar.gz", hash = "sha256:a79bef8469a79c45498e7b814ecf8d603cc7644e9acbd9e19cac0334240b18df", size = 203994, upload-time = "2026-08-03T14:41:03.438Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/43/89/9518bc0c3929bee36b3a4a8e3daddd6e03f92f9961c66d4983b837160543/typer-0.27.1-py3-none-any.whl", hash = "sha256:53150287edd11baeb4e4722c8e394fcdf8181c0ae89485cba8d25c778d5edd56", size = 122874, upload-time = "2026-08-03T14:41:04.391Z" },
+]
+
+[[package]]
+name = "types-docker"
+version = "7.2.0.20260819"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-requests" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f3/b6/4ccc887c1ef5974699d4e0c1904d72534f99c7bb6c88bc24b8000a4c81bd/types_docker-7.2.0.20260819.tar.gz", hash = "sha256:3fe9a80f1f1ba271d9188b58f46c743eede65e1c46bb82ca87101725a2dc7a22", size = 36846, upload-time = "2026-08-19T02:47:25.481Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a4/ea/4c1dd437b82b55c6333e31617cc9befd07d19392404d861e290cc8d6b8c3/types_docker-7.2.0.20260819-py3-none-any.whl", hash = "sha256:b25951651f2bdad88e194067bb8a523d2963a316caef699a2c2a4e30c3394ae2", size = 51258, upload-time = "2026-08-19T02:47:24.4Z" },
+]
+
+[[package]]
+name = "types-requests"
+version = "2.33.0.20260712"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/db/51/703318f7b7be8bee126ec13bf615050f932d0179b8784420f3a0199cc769/types_requests-2.33.0.20260712.tar.gz", hash = "sha256:2141b67ab534a5c5cd2dac5034f2a35f42e699c5bf185eee608c5246a069d7fb", size = 25084, upload-time = "2026-07-12T05:14:20.455Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/e7/010c87f559e216d83f9dc51e939633fd0d0ead3377340181ab0e223cd3b5/types_requests-2.33.0.20260712-py3-none-any.whl", hash = "sha256:de027e28c171d3da529689cbfa023b0b4eab188c8dfa22fd834eebd2cee6e7bb", size = 21392, upload-time = "2026-07-12T05:14:19.616Z" },
 ]
 
 [[package]]

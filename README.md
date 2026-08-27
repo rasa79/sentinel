@@ -56,3 +56,5 @@ runs reuse the cached model and are quick.
 - **L5 – Grafana optional:** present only behind a compose profile with no provisioned dashboards.
 - **L6 – LangSmith no-op:** tracing/eval-upload to LangSmith is a logged no-op without a key
   (internal-only; not user-visible).
+- **L7 – Partial scale emulation:** `scale_replicas` restarts named replica containers if present,
+  else returns `not_applicable` (no compose v2 dynamic scaling, Phase 4).

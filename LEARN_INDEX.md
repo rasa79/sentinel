@@ -28,3 +28,4 @@ every code block must have a row here. Concept tags are used for the cross-refer
 | LEARN[20] | interrupt/Command(resume) vs an API polling loop (D6, deep-dive)                                   | src/sentinel/agent/graph.py:38     | resumable suspension; polling; single-writer; BPMN wait-state      |
 | LEARN[21] | Retry policy design: 3 attempts + exponential backoff, transient-only (D9)                          | src/sentinel/tools/loki.py:1       | retry; backoff; transient vs permanent; tenacity; httpx            |
 | LEARN[22] | PromQL notes: rate(), histogram quantiles, empty results are data (QS-4 cross-ref)                | src/sentinel/tools/prometheus.py:1 | PromQL; rate; histogram_quantile; gauge; empty-result-as-data       |
+| LEARN[23] | Whitelist + dry-run in the executor: the capability gate for agent actions (D11, deep-dive)      | src/sentinel/tools/executor.py:1   | capability gating; whitelist; dry-run; docker socket; authorization |
