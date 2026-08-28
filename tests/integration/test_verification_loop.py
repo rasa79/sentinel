@@ -160,3 +160,59 @@ async def test_verification_loop_resolves_after_real_restart() -> None:
         assert body["incident"]["status"] == "resolved"
 
     await _cleanup(state, incident_id)
+
+
+async def test_verification_loop_escalates_and_emits_escalation_event() -> None:
+    # scale_replicas is not_applicable (no replicas) so it does NOT clear the fault; the
+    # fixed-window re-check keeps breaching and escalates.
+    settings = Settings(
+        _env_file=os.devnull,
+        verification=VerificationSettings(delay_seconds=1, attempts=3),
+    )
+    state = _make_state(_llm("remediation_scale.json"), settings)
+    app = create_app(state)
+    alertname = f"VerifyEscalated-{uuid.uuid4().hex[:8]}"
+    # Keep the fault producing errors during the verify window.
+    async with httpx.AsyncClient(timeout=8) as client:
+        await client.post(
+            _SERVICE_URL + "/chaos", json={"type": "error_burst", "duration_seconds": 300}
+        )
+
+    async def _traffic() -> None:
+        async with httpx.AsyncClient(timeout=8) as client:
+            for _ in range(6):
+                try:
+                    await client.get(_SERVICE_URL + "/work")
+                except httpx.HTTPError:
+                    pass
+                await asyncio.sleep(1.0)
+
+    traffic_task = asyncio.create_task(_traffic())
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        r = await client.post("/alerts/webhook", json={"alerts": [_alert(alertname)]})
+        assert r.status_code == 202
+        incident_id = r.json()["incident_id"]
+        await _wait_status(state, incident_id, {"awaiting_approval"})
+        ar = await client.post(f"/incidents/{incident_id}/approve")
+        assert ar.status_code == 202
+        # The fault was not cleared -> escalated.
+        await _wait_status(state, incident_id, {"escalated"})
+        traffic_task.cancel()
+        try:
+            await traffic_task
+        except asyncio.CancelledError:
+            pass
+
+        body = (await client.get(f"/incidents/{incident_id}")).json()
+        assert body["incident"]["status"] == "escalated"
+        # The escalation event must carry the observed metric values.
+        escalation_events = [
+            e for e in body["events"] if e["event_type"] == "escalation" and e["node"] == "verify"
+        ]
+        assert escalation_events, "expected a verify/escalation event"
+        assert escalation_events[-1]["payload"].get("values"), escalation_events[-1]["payload"]
+
+    await _cleanup(state, incident_id)

@@ -1,0 +1,1 @@
+{"response": "{\"action\": \"scale_replicas\", \"target_service\": \"orders\", \"params\": {\"replicas\": 2}, \"rationale\": \"scale out to absorb load\"}"}
