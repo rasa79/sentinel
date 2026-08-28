@@ -11,7 +11,9 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 from langchain_core.language_models import BaseChatModel
 from langgraph.types import Command
@@ -66,22 +68,35 @@ def _derive_status(state: AgentState) -> str:
 
 
 def _serialize(value: Any) -> Any:
+    """Serialize to a JSON-safe structure (the event payload is persisted to a JSONB column).
+
+    ``model_dump()`` keeps datetime/UUID objects, which psycopg's JSONB adaptation cannot
+    ``json.dumps`` — an event whose payload contains them (e.g. DeployEvent.created_at) would
+    silently fail to persist (caught in _persist) and vanish from the trace. Convert those and any
+    remaining non-JSON primitive to a string so every emitted event is durable (D10).
+    """
     if value is None:
         return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, (str, int, float, bool)):
+        return value
     if hasattr(value, "model_dump"):
-        return value.model_dump()
+        return _serialize(value.model_dump())
     if isinstance(value, dict):
         return {k: _serialize(v) for k, v in value.items()}
     if isinstance(value, list):
         return [_serialize(v) for v in value]
-    return value
+    return str(value)  # conservative fallback for non-primitives (e.g. Decimal, set)
 
 
 def _set_incident_status(state: AppState, incident_id: str, status: str) -> None:
     from sentinel.db.models import Incident
 
     with state.session_factory() as session:
-        incident = session.get(Incident, __import__("uuid").UUID(incident_id))
+        incident = session.get(Incident, UUID(incident_id))
         if incident is not None and incident.status != status:
             incident.status = status
             session.commit()

@@ -121,6 +121,12 @@ def build_graph(checkpointer: PostgresSaver | None = None) -> Any:
     graph.add_conditional_edges(
         "triage", _should_investigate, {"gather_logs": "gather_logs", "report": "report"}
     )
+    # The evidence-gather path is UNCONDITIONAL and always runs all three gather nodes in order
+    # (gather_logs -> gather_metrics -> gather_deploys). None of them is gate-controlled; the
+    # decision to investigate was already made at `triage` above (the only conditional here). So
+    # a run that reaches gather_logs ALWAYS reaches gather_metrics and gather_deploys — there is no
+    # "skip metrics because logs arrived first" path. Each node decides empty-vs-signal itself
+    # (LEARN[28]); gather_metrics is never skipped based on gather_logs.
     graph.add_edge("gather_logs", "gather_metrics")
     graph.add_edge("gather_metrics", "gather_deploys")
     graph.add_edge("gather_deploys", "runbook_rag")

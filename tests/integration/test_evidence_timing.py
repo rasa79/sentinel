@@ -1,9 +1,11 @@
-"""Regression test for evidence timing (PLAN.md Phase 5 defect, iteration 3).
+"""Regression test for the evidence-timing gather retry against the living graph (Phase 5 defect).
 
-Injects a fault, fires the alert IMMEDIATELY (while the observability pipelines are still lagging),
-and asserts the agent does NOT conclude a false alarm while the fault is active: the gather nodes
-must retry on empty evidence (LEARN[28]) and observe the error rate + error logs. Requires the
-compose stack. Marked ``integration``.
+Fires the alert through the API IMMEDIATELY and runs the real graph + checkpointer, but uses a
+MOCKED evidence source (first query empty, retry non-empty) so the test is deterministic — it does
+not depend on real Prometheus scrape / Loki push timing, which made the previous version pipeline-
+state-lucky. It asserts both gather nodes ALWAYS run (unconditional gather path) and the graph
+reaches the actionable human gate (NOT a false-alarm/no_action conclusion). Requires the compose DB.
+Marked ``integration``.
 """
 
 from __future__ import annotations
@@ -29,7 +31,6 @@ from sentinel.db.session import create_engine_from_url, make_session_factory
 pytestmark = pytest.mark.integration
 
 FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "llm"
-_SERVICE_URL = "http://localhost:9001"
 
 
 def _load(name: str) -> str:
@@ -91,13 +92,13 @@ async def _status(state: AppState, incident_id: str) -> str:
 
 
 async def _wait_status(
-    state: AppState, incident_id: str, target: str, max_wait: float = 90.0
+    state: AppState, incident_id: str, target: str, max_wait: float = 60.0
 ) -> None:
     deadline = time.monotonic() + max_wait
     while time.monotonic() < deadline:
         if await _status(state, incident_id) == target:
             return
-        await asyncio.sleep(1.0)
+        await asyncio.sleep(0.5)
     raise AssertionError(f"incident {incident_id} never reached {target!r}")
 
 
@@ -110,65 +111,71 @@ async def _cleanup(state: AppState, incident_id: str) -> None:
         session.commit()
 
 
-async def test_agent_does_not_conclude_false_alarm_while_fault_active() -> None:
+async def test_gather_nodes_run_and_no_false_alarm(monkeypatch: Any) -> None:
+    from datetime import timedelta
+
+    from sentinel.agent.schemas import LogExcerpt, MetricFinding
+
     settings = Settings(_env_file=os.devnull)
     state = _make_state(_make_llm(), settings)
     app = create_app(state)
+
+    # Deterministic evidence: the gather nodes see an empty/no-signal result first (as if the
+    # pipeline hasn't caught up), then a populated one on retry. Only the first query is empty.
+    metric_calls = {"n": 0}
+    log_calls = {"n": 0}
+
+    def fake_metrics(service: str, window: timedelta, *a: Any, **kw: Any) -> list[MetricFinding]:
+        metric_calls["n"] += 1
+        expr = f'rate(http_errors_total{{service="{service}"}}[{window.total_seconds():.0f}m])'
+        if metric_calls["n"] == 1:
+            return [
+                MetricFinding(metric="http_errors_total", value=0.0, breach=False, expression=expr)
+            ]
+        return [MetricFinding(metric="http_errors_total", value=0.04, breach=True, expression=expr)]
+
+    def fake_logs(service: str, since: timedelta, *a: Any, **kw: Any) -> list[LogExcerpt]:
+        log_calls["n"] += 1
+        return (
+            []
+            if log_calls["n"] == 1
+            else [LogExcerpt(service=service, message="503", level="ERROR")]
+        )
+
+    monkeypatch.setattr("sentinel.agent.nodes.gather_metrics.query_anomalies", fake_metrics)
+    monkeypatch.setattr("sentinel.agent.nodes.gather_logs.query_logs", fake_logs)
+    # No real 3s sleeps in the retry loop during the test.
+    monkeypatch.setattr("sentinel.agent.evidence.time.sleep", lambda s: None)
+
     alertname = f"EvidenceTiming-{uuid.uuid4().hex[:8]}"
-    incident_id = ""
-
-    # 1. Inject the bad_deploy fault on the orders service.
-    async with httpx.AsyncClient(base_url=_SERVICE_URL, timeout=10) as svc:
-        await svc.post("/chaos", json={"type": "bad_deploy", "duration_seconds": 60})
-
-    # 2. Fire a short, sparse burst of /work so the fault manifests as 503s (error logs + error
-    #    counter) while the graph gathers. It must stay SMALL — a continuous flood would bury the
-    #    latency_spike assertion in the shared duration histogram (LEARN[22]).
-
-    async def _burst() -> None:
-        async with httpx.AsyncClient(timeout=10) as client:
-            for _ in range(5):
-                try:
-                    await client.get(f"{_SERVICE_URL}/work")
-                except httpx.HTTPError:
-                    pass
-                await asyncio.sleep(1.0)
-
-    burst_task = asyncio.create_task(_burst())
-
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        # 3. Fire the webhook IMMEDIATELY — no settle wait. The fault is active but the metric/log
-        #    pipelines have not necessarily caught up.
         r = await client.post("/alerts/webhook", json={"alerts": [_alert(alertname)]})
         assert r.status_code == 202
         incident_id = r.json()["incident_id"]
 
-        # 4. Let the graph reach the actionable human gate (proves it did NOT call this a false
-        #    alarm / no_action). The gather retry (LEARN[28]) rides out the lag.
+        # The graph must reach the actionable human gate (NOT a false-alarm / no_action).
         await _wait_status(state, incident_id, "awaiting_approval")
 
-        burst_task.cancel()
-        try:
-            await burst_task
-        except asyncio.CancelledError:
-            pass
-
-        # 5. The gathered evidence must be non-empty: an error-rate breach and real error logs.
         body = (await client.get(f"/incidents/{incident_id}")).json()
         events = body["events"]
         node_names = [e["node"] for e in events]
-        assert "gather_metrics" in node_names, f"graph never reached gather_metrics: {node_names}"
-        assert "gather_logs" in node_names, f"graph never reached gather_logs: {node_names}"
+        # BOTH gather nodes always run (unconditional gather path, LEARN[28]).
+        assert "gather_logs" in node_names, f"gather_logs missing (e2e): {node_names}"
+        assert "gather_metrics" in node_names, f"gather_metrics missing (e2e): {node_names}"
+        assert "gather_deploys" in node_names, f"gather_deploys missing (e2e): {node_names}"
+
+        # The gather retried (first query empty) and ended with a breach + logs.
         metrics_event = next(e for e in events if e["node"] == "gather_metrics")
-        err_findings = [
-            m for m in metrics_event["payload"]["metrics"] if m["metric"] == "http_errors_total"
-        ]
-        assert any(m["breach"] for m in err_findings), (
-            f"expected an error-rate breach: {err_findings}"
-        )
+        err = [m for m in metrics_event["payload"]["metrics"] if m["metric"] == "http_errors_total"]
+        assert any(m["breach"] for m in err), f"expected a breach after retry: {err}"
         logs_event = next(e for e in events if e["node"] == "gather_logs")
-        assert logs_event["payload"]["logs"], "expected non-empty error log evidence"
+        assert logs_event["payload"]["logs"], "expected non-empty log evidence after retry"
+
+        assert metric_calls["n"] >= 2, (
+            f"expected gather_metrics to retry, got {metric_calls['n']} call(s)"
+        )
+        assert log_calls["n"] >= 2, f"expected gather_logs to retry, got {log_calls['n']} call(s)"
 
     await _cleanup(state, incident_id)
