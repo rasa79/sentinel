@@ -34,10 +34,9 @@
 - **What this means:** Verification is a fixed-window re-query of the alerting expression after
   `verification.delay_seconds`, with no statistical/confirmation window and no auto-rollback on
   flapping.
-- **Where partial coverage lives:** none (component `src/sentinel/agent/nodes/verify.py` not yet
-  created).
-- **TODO(review):** move this marker into `src/sentinel/agent/nodes/verify.py` when the verify node
-  exists (Phase 6) and pair it with the LEARN comment that names this accepted risk.
+- **Where partial coverage lives:** component `src/sentinel/agent/nodes/verify.py` (Phase 6); the
+  accepted risk is named in LEARN[29] and its `review` marker lives at that file
+  (mandatory-placement pairing rule).
 
 ## L5 — Grafana only an optional compose profile; no provisioned dashboards (user-visible)
 

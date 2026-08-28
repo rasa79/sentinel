@@ -103,6 +103,9 @@ class VerificationSettings(BaseModel):
 
     delay_seconds: int = 30
     attempts: int = 3
+    # Post-action re-check PromQL expression. None -> the verify node derives the affected service's
+    # error rate. Override per-incident (e.g. a memory alert) via config/env (D15).
+    expr: str | None = None
 
 
 class RAGSettings(BaseModel):

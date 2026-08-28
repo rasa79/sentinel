@@ -24,7 +24,7 @@ from typer.testing import CliRunner
 
 from sentinel.api.app import create_app
 from sentinel.api.deps import AppState
-from sentinel.config import Settings
+from sentinel.config import Settings, VerificationSettings
 from sentinel.db.session import create_engine_from_url, make_session_factory
 
 pytestmark = pytest.mark.integration
@@ -118,7 +118,7 @@ def test_cli_commands_against_live_api() -> None:
     from sentinel.cli import main as cli
     from sentinel.db.models import AgentEvent, Incident
 
-    settings = Settings(_env_file=os.devnull)
+    settings = Settings(_env_file=os.devnull, verification=VerificationSettings(delay_seconds=1))
     state = _make_state(_make_llm(), settings)
     app = create_app(state)
     base, thread, server = _start_server(app)

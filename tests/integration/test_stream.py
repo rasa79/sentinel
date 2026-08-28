@@ -19,7 +19,7 @@ from langchain_core.messages import AIMessage
 
 from sentinel.api.app import create_app
 from sentinel.api.deps import AppState
-from sentinel.config import Settings
+from sentinel.config import Settings, VerificationSettings
 from sentinel.db.models import AgentEvent, Incident
 from sentinel.db.session import create_engine_from_url, make_session_factory
 
@@ -144,7 +144,7 @@ async def _read_sse(client: httpx.AsyncClient, url: str) -> list[dict[str, Any]]
 
 
 async def test_stream_replays_then_tails_and_closes_on_terminal() -> None:
-    settings = Settings(_env_file=os.devnull)
+    settings = Settings(_env_file=os.devnull, verification=VerificationSettings(delay_seconds=1))
     state = _make_state(_make_llm(), settings)
     app = create_app(state)
     alertname = f"StreamFlow-{uuid.uuid4().hex[:8]}"

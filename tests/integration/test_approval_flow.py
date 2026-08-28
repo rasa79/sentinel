@@ -19,7 +19,7 @@ from langchain_core.messages import AIMessage
 
 from sentinel.api.app import create_app
 from sentinel.api.deps import AppState
-from sentinel.config import Settings
+from sentinel.config import Settings, VerificationSettings
 from sentinel.db.models import AgentEvent, Incident
 from sentinel.db.session import create_engine_from_url, make_session_factory
 
@@ -119,7 +119,7 @@ async def _cleanup(state: AppState, incident_id: str) -> None:
 
 
 async def test_approval_flow_end_to_end() -> None:
-    settings = Settings(_env_file=os.devnull)
+    settings = Settings(_env_file=os.devnull, verification=VerificationSettings(delay_seconds=1))
     state = _make_state(_make_llm(), settings)
     app = create_app(state)
     alertname = f"ApprovalFlow-{uuid.uuid4().hex[:8]}"
@@ -129,11 +129,11 @@ async def test_approval_flow_end_to_end() -> None:
         r = await client.post("/alerts/webhook", json={"alerts": [_alert(alertname)]})
         assert r.status_code == 202
         incident_id = r.json()["incident_id"]
-        await _wait_for(state, incident_id, "awaiting_approval")
+        await _wait_for(state, incident_id, "awaiting_approval", max_wait=60)
 
         ar = await client.post(f"/incidents/{incident_id}/approve")
         assert ar.status_code == 202
-        await _wait_terminal(state, incident_id)
+        await _wait_terminal(state, incident_id, max_wait=60)
 
         gr = await client.get(f"/incidents/{incident_id}")
         body = gr.json()
