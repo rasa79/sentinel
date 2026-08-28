@@ -12,7 +12,9 @@ ROLE = "You are an SRE incident analyst investigating a service degradation."
 TASK = (
     "Given the gathered evidence (logs, metrics, deploy events, runbook hits), form a root-cause "
     "hypothesis. Respond with ONLY a JSON object with the cause, a confidence in [0,1], a list of "
-    "evidence strings, the affected service, and a list of references."
+    "evidence strings, the affected service, and a list of references. The authoritative affected "
+    "service is given as 'alert service=<name>'; use that name (not an endpoint or log-derived "
+    "name) for affected_service and in the cause."
 )
 
 # Kept in lock-step with RootCauseHypothesis.model_json_schema() (drift-guard test).
@@ -31,10 +33,12 @@ HYPOTHESIS_SCHEMA = json.dumps(
     indent=2,
 )
 
-FEW_SHOT_INPUT = '{"evidence": "http_errors_total rising; deploy row with bad_deploy"}'
+FEW_SHOT_INPUT = (
+    '{"evidence": "http_errors_total rising; deploy row with bad_deploy"} | alert service=orders'
+)
 FEW_SHOT_OUTPUT = json.dumps(
     {
-        "cause": "A faulty release was deployed, making the work endpoint fail.",
+        "cause": "A faulty release was deployed to the orders service.",
         "confidence": 0.85,
         "evidence": ["http_errors_total climbing", "bad_deploy row with new version"],
         "affected_service": "orders",

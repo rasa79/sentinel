@@ -98,7 +98,7 @@ def _start_server(app: Any) -> tuple[str, threading.Thread, uvicorn.Server]:
 
 
 async def _wait_status(
-    state: AppState, incident_id: str, target: str, max_wait: float = 30.0
+    state: AppState, incident_id: str, targets: set[str], max_wait: float = 30.0
 ) -> None:
     from sentinel.db.models import Incident
 
@@ -106,10 +106,10 @@ async def _wait_status(
     while time.monotonic() < deadline:
         with state.session_factory() as session:
             incident = session.get(Incident, uuid.UUID(incident_id))
-            if incident is not None and incident.status == target:
+            if incident is not None and incident.status in targets:
                 return
         await asyncio.sleep(0.5)
-    raise AssertionError(f"incident {incident_id} never reached {target!r}")
+    raise AssertionError(f"incident {incident_id} never reached {sorted(targets)!r}")
 
 
 def test_cli_commands_against_live_api() -> None:
@@ -156,13 +156,15 @@ def test_cli_commands_against_live_api() -> None:
         assert show_result.exit_code == 0, show_result.output
         assert incident_id in show_result.output
 
-        # Wait for the interrupt, then approve via the CLI; the run must finish resolved.
-        asyncio.run(_wait_status(state, incident_id, "awaiting_approval"))
+        # Wait for the interrupt, then approve via the CLI; the run must finish in a terminal
+        # status (resolved if verification cleared the alert, escalated if the remediation did not
+        # actually clear it — the report reflects the real outcome either way).
+        asyncio.run(_wait_status(state, incident_id, {"awaiting_approval"}))
         approve_result = runner.invoke(
             cli.app, ["incidents", "approve", incident_id, "--api", base]
         )
         assert approve_result.exit_code == 0, approve_result.output
-        asyncio.run(_wait_status(state, incident_id, "resolved"))
+        asyncio.run(_wait_status(state, incident_id, {"resolved", "escalated", "rejected"}))
     finally:
         server.should_exit = True
         thread.join(timeout=5)

@@ -102,6 +102,8 @@ def query_logs(
     for stream in payload.get("data", {}).get("result", []):
         for value in stream.get("values", []):
             line = value[1]
+            # Loki returns [nanosecond_ts, line]; keep the timestamp for the incident timeline.
+            ts = _parse_loki_ts(value[0]) if value else None
             try:
                 record = json.loads(line)
                 logs.append(
@@ -109,8 +111,17 @@ def query_logs(
                         service=record.get("service", service),
                         message=record.get("message", line),
                         level=record.get("level", "info"),
+                        timestamp=ts,
                     )
                 )
             except json.JSONDecodeError:
-                logs.append(LogExcerpt(service=service, message=line, level="info"))
+                logs.append(LogExcerpt(service=service, message=line, level="info", timestamp=ts))
     return logs
+
+
+def _parse_loki_ts(ns: str) -> datetime | None:
+    """Parse a Loki nanosecond epoch string into a UTC datetime (None if unparseable)."""
+    try:
+        return datetime.fromtimestamp(int(ns) / 1e9, tz=UTC)
+    except (ValueError, TypeError, OverflowError):
+        return None

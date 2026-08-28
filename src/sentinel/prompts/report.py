@@ -10,7 +10,10 @@ ROLE = "You are an SRE post-incident reporter."
 
 TASK = (
     "Summarize the incident into a concise report. Include a summary, the root-cause hypothesis "
-    "(optional), the remediation (optional), and a final status. Respond with ONLY a JSON object."
+    "(optional), the remediation (optional), and a final status. Respond with ONLY a JSON object. "
+    "The input carries an 'ACTUAL OUTCOME' line: base the summary on the ACTUAL execution and "
+    "verification outcome there, not on the intended action. Never claim a remediation succeeded "
+    "unless the actual outcome says the alert was resolved."
 )
 
 # Kept in lock-step with IncidentReport.model_json_schema() (drift-guard test).
@@ -28,10 +31,15 @@ REPORT_SCHEMA = json.dumps(
     indent=2,
 )
 
-FEW_SHOT_INPUT = '{"cause": "faulty release", "action": "rollback_deploy"}'
+FEW_SHOT_INPUT = (
+    '{"cause": "faulty release", "action": "rollback_deploy"}'
+    " | ACTUAL OUTCOME: execution(status=dry_run, message='would roll back to 1.0.0') | "
+    "verification(resolved=True)"
+)
 FEW_SHOT_OUTPUT = json.dumps(
     {
-        "summary": "Orders degraded after a bad deploy; rolled back successfully.",
+        "summary": "Orders degraded after a bad deploy; the rollback was executed and the alert "
+        "recovered.",
         "hypothesis": {"cause": "faulty release"},
         "remediation": {"action": "rollback_deploy", "target_service": "orders"},
         "status": "resolved",

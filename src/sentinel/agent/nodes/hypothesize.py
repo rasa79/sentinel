@@ -13,11 +13,15 @@ from sentinel.prompts.hypothesize import build_hypothesis_prompt
 
 
 def _evidence_summary(state: AgentState) -> str:
+    # Prepend the AUTHORITATIVE affected service from the alert so the LLM never derives the service
+    # from endpoint names in the logs (which are "work", not "orders").
+    parts = [f"alert service={state['alert'].service}"]
     logs = [f"{e.level}: {e.message}" for e in state.get("logs", [])]
     metrics = [f"{m.metric}={m.value:.3f}" for m in state.get("metrics", [])]
     deploys = [f"{d.event} {d.version}" for d in state.get("deploys", [])]
     runbooks = [r.title for r in state.get("runbooks", [])]
-    parts = ["logs=" + "; ".join(logs[-5:]), "metrics=" + "; ".join(metrics[-5:])]
+    parts.append("logs=" + "; ".join(logs[-5:]))
+    parts.append("metrics=" + "; ".join(metrics[-5:]))
     if deploys:
         parts.append("deploys=" + "; ".join(deploys[-5:]))
     if runbooks:
