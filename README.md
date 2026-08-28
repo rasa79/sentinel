@@ -76,8 +76,8 @@ With the API up on `:8000`, the CLI also drives individual operations:
 - `uv run sentinel incidents show <id>` — an incident + ordered agent trace + graph state.
 - `uv run sentinel incidents approve <id>` / `reject <id>` — resume a pending approval (D6).
 - `uv run sentinel incidents watch <id>` — tail the SSE stream of node-by-node updates live.
-- `uv run sentinel demo` — inject a fault, fire the webhook, wait for approval, approve, watch to a
-  terminal status, and print the final report.
+- `uv run sentinel demo` — inject a fault and generate `/work` traffic so it manifests, fire the
+  webhook, wait for approval, approve, watch to a terminal status, and print the final report.
 
 The `demo` command currently orchestrates the Phase-5 flow against one running service (default
 `orders` at `http://localhost:9001`); Phase 8 polishes it into the full scripted walkthrough.

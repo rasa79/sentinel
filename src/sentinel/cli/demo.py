@@ -27,6 +27,10 @@ _POLL_TIMEOUT = 180.0
 # Pause after injecting chaos so the fault is captured by the metrics/log pipelines before the graph
 # gathers evidence (a 5s scrape interval needs a couple of cycles to show a breach).
 _CHAOS_SETTLE_SECONDS = 8.0
+# /work requests to generate while the chaos is active, so the fault manifests as error logs + a
+# non-zero error rate for the agent to observe (the chaos only affects /work, so without traffic the
+# evidence would stay empty).
+_TRAFFIC_HITS = 8
 # Terminal statuses: the stream closes (and the graph has no more work) once one is reached.
 _TERMINAL_STATUSES = frozenset({"resolved", "rejected", "escalated"})
 
@@ -123,6 +127,25 @@ def inject_chaos(service_url: str, chaos_type: str, duration_seconds: int) -> No
         raise DemoError(f"could not reach demo service at {service_url}: {exc}") from exc
 
 
+def generate_traffic(
+    service_url: str, hits: int = _TRAFFIC_HITS, span: float = _CHAOS_SETTLE_SECONDS
+) -> None:
+    """Hit the service /work endpoint so an active chaos fault actually manifests (503s/error logs).
+
+    The chaos types only change the behavior of /work, so without traffic the fault is invisible to
+    the observability pipeline and the agent would see healthy metrics. 5xx responses are exactly
+    the signal we want; transport errors are ignored.
+    """
+    url = f"{service_url.rstrip('/')}/work"
+    step = span / hits if hits else span
+    for _ in range(hits):
+        try:
+            httpx.get(url, timeout=5)
+        except httpx.HTTPError:
+            pass
+        time.sleep(step)
+
+
 def fire_alert(api: str, alertname: str, service: str, severity: str) -> str:
     """POST an Alertmanager-style webhook; return the (new or deduped) incident id."""
     try:
@@ -171,12 +194,12 @@ def run_demo(
     base = api.rstrip("/")
 
     try:
-        # 1. Inject the fault and fire the webhook. Give the fault a moment to reach the metrics/log
-        #    pipelines so the agent gathers evidence that supports an actionable finding (otherwise
-        #    the run may conclude "no action needed" and skip the approval gate).
+        # 1. Inject the fault, then generate /work traffic so it manifests (the chaos only affects
+        #    /work). The webhook fires immediately; the gather nodes retry briefly on empty evidence
+        #    because the scrape/Loki pipelines lag (LEARN[28]).
         inject_chaos(service_url, chaos_type, duration_seconds)
         console.print(f"injected [bold]{chaos_type}[/bold] on [bold]{service}[/bold]")
-        time.sleep(_CHAOS_SETTLE_SECONDS)
+        generate_traffic(service_url)
         # A unique alert name keeps repeated demo runs from colliding with the webhook's 60s
         # (alertname, service) dedupe window — each run is its own incident.
         alert_name = f"{alertname}-{uuid.uuid4().hex[:6]}"

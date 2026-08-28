@@ -10,6 +10,10 @@
 # Drawbacks:
 #   - fixed expressions are tuned for the demo chaos; a real fleet needs per-service thresholds
 #   - thresholds are hard-coded (error>0, p95>1s, RSS>180MB), which is a blunt instrument
+#   - a window dilutes a fresh burst: rate()[15m] lowers a brand-new spike to ~0.009, so the gather
+#     nodes use a short 5m window aligned with the 5s scrape (D16); the threshold stays >0 because
+#     the alert already established that errors are happening, so ANY positive rate confirms (not
+#     discovers) the incident.
 #  Concept: three PromQL ideas matter here. (1) rate() over a Counter turns a monotonic counter into
 # a
 #    per-second rate, so "errors happening now" is rate(http_errors_total[2m]), not the counter
@@ -25,7 +29,8 @@
 #    inspect, not a crash. The Memory gauge (process_resident_memory_bytes) is a Gauge, which can go
 #   up
 #   and down, so we breach on an absolute threshold rather than a rate.
-# See also: LEARN[21] (retry policy, shared), D9 in PLAN.md
+# See also: LEARN[21] (retry policy, shared), LEARN[28] (empty-is-suspicious retry the gather
+# nodes add — the client here is still empty-as-data), D9 in PLAN.md
 from __future__ import annotations
 
 from datetime import timedelta
