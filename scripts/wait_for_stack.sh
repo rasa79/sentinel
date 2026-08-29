@@ -41,4 +41,34 @@ for svc in ${SERVICES}; do
   done
 done
 
-echo "All services are up."
+echo "All infra services are up."
+
+# Wait for the Sentinel API (Phase 5) and the toy service endpoints (Phase 1).
+API_URL="${API_URL:-http://localhost:8000}"
+SERVICE_BASE="${SERVICE_BASE:-http://localhost}"
+SERVICE_PORTS="${SERVICE_PORTS:-9001 9002 9003}"
+
+echo "waiting for the Sentinel API at ${API_URL} ..."
+api_deadline=$(( $(now) + ${TIMEOUT} ))
+until curl -fsS "${API_URL}/health" >/dev/null 2>&1; do
+  if [ $(( $(now) )) -ge "${api_deadline}" ]; then
+    echo "TIMEOUT: API at ${API_URL} did not become healthy" >&2
+    exit 1
+  fi
+  sleep "${INTERVAL}"
+done
+echo "  Sentinel API is up."
+
+echo "waiting for toy services ..."
+svc_deadline=$(( $(now) + ${TIMEOUT} ))
+until curl -fsS "${SERVICE_BASE}:${SERVICE_PORTS%% *}/chaos/status" >/dev/null 2>&1; do
+  if [ $(( $(now) )) -ge "${svc_deadline}" ]; then
+    echo "TIMEOUT: toy services at ${SERVICE_BASE} (${SERVICE_PORTS}) did not become ready" >&2
+    exit 1
+  fi
+  sleep "${INTERVAL}"
+done
+echo "  toy services are up."
+
+echo "All infra, services, and the API are up."
+
