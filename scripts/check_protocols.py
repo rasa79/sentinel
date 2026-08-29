@@ -153,11 +153,22 @@ def _user_visible_limitation_nums() -> list[int]:
 
 
 def _readme_limitation_nums() -> set[int]:
-    """The L-numbers the README mentions (its Known limitations + any cross-references)."""
+    """The L-numbers the README *documents* in its ``Known limitations`` section.
+
+    Scoped to that section only. A bare cross-reference to ``L8`` elsewhere in the README (e.g.
+    the eval-table caveat) or a coincidental ``L6`` inside a model name like ``MiniLM-L6-v2`` is
+    the *mention*, not the documented limitation, so it must not satisfy the check. This prevents
+    the check from claiming coverage it does not actually have.
+    """
     readme = ROOT / "README.md"
     if not readme.exists():
         return set()
-    return {int(n) for n in re.findall(r"\bL(\d+)\b", readme.read_text(encoding="utf-8"))}
+    text = readme.read_text(encoding="utf-8")
+    # Extract from the `## Known limitations` heading until the next `## ` heading (or EOF).
+    m = re.search(r"(?ms)^##\s*Known\s+limitations\s*\n(.*?)(?=^##\s|\Z)", text)
+    if not m:
+        return set()
+    return {int(n) for n in re.findall(r"\bL(\d+)\b", m.group(1))}
 
 
 def _fail(message: str) -> None:
