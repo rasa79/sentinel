@@ -16,13 +16,13 @@ flowchart LR
         s1 --> l1[Loki]
         s2 --> l1
         s3 --> l1
-        s1 --> postgres[(Postgres\n"deployments")]
+        s1 --> postgres[("Postgres<br/>deployments")]
     end
     subgraph api["sentinel-api (compose, :8000)"]
-        webhook[alert webhook\n/alerts/webhook]
-        agent{agent loop\nLangGraph\ninterrupt at human_gate}
-        bus[event bus\nSSE stream]
-        executor[Docker executor\nwhitelist + dry-run]
+        webhook[alert webhook<br/>/alerts/webhook]
+        agent{agent loop<br/>LangGraph<br/>interrupt at human_gate}
+        bus[event bus<br/>SSE stream]
+        executor[Docker executor<br/>whitelist + dry-run]
     end
     p1 --> agent
     l1 --> agent
@@ -30,7 +30,7 @@ flowchart LR
     webhook --> agent
     agent -->|"propose+approve"| executor
     agent -. "human" .-> human[human]
-    human -- "approve/reject\nPOST /incidents/{id}" --> agent
+    human -- "approve/reject<br/>POST /incidents/{id}" --> agent
 ```
 
 The flow: an alert hits the webhook → the graph gathers evidence → reasons → proposes a remediation
