@@ -59,11 +59,53 @@ environment note in the Phase 0 report.
 
 ## LLM setup (dual-provider smoke test)
 
-`scripts/smoke_llm.py` drives the same `structured_call` loop (D1) against the configured provider
-(`LLM_PROVIDER=ollama|openai`, shell or `.env`). Local path: `OLLAMA_HOST=0.0.0.0 ollama serve`,
-`ollama pull phi4-mini`, then `uv run python scripts/smoke_llm.py --provider ollama`. Cloud path: set
-the key + endpoint/model and run `--provider openai`. Secrets live in `.env` (gitignored) — see
-`.env.example`.
+`scripts/smoke_llm.py` drives the same `structured_call` loop (D1) against the configured provider;
+the provider/model/endpoint are config, not code (D3/D14). Copy the right block into `.env`
+(gitignored), then run the matching command. Secrets live in `.env` — see `.env.example` for the
+full variable reference.
+
+**Naming convention (LEARN[03]):** every config var is prefixed `SENTINEL_` so it never collides with
+an unrelated daemon, and nested keys are joined with `__` (double underscore) — so
+`SENTINEL_LLM__MODEL` sets `llm.model` and `SENTINEL_DATABASE__URL` sets `database.url`. Only
+`LLM_PROVIDER` is an unprefixed convenience passthrough: the config preprocessor maps it onto
+`llm.provider` and it always wins, so you flip cloud/local without touching `config.yaml`.
+
+**Cloud (OpenAI-compatible endpoint, e.g. DeepSeek):**
+
+```dotenv
+LLM_PROVIDER=openai
+SENTINEL_LLM__MODEL=deepseek-v4-flash
+SENTINEL_LLM__BASE_URL=https://api.deepseek.com
+SENTINEL_LLM__API_KEY_ENV=DEEPSEEK_API_KEY   # *name* of the env var that holds the real key
+DEEPSEEK_API_KEY=sk-...                       # real key lives in .env, never committed
+```
+
+```bash
+uv run python scripts/smoke_llm.py --provider openai
+```
+
+**Local (Ollama):**
+
+```dotenv
+LLM_PROVIDER=ollama
+SENTINEL_LLM__MODEL=phi4-mini
+SENTINEL_LLM__BASE_URL=http://localhost:11434/v1            # host (CLI / demo / scripts)
+# The API *container* must reach the host-side Ollama instead (D4 / LEARN[06]):
+#   SENTINEL_LLM__BASE_URL=http://host.docker.internal:11434/v1
+SENTINEL_LLM__API_KEY_ENV=OPENAI_API_KEY   # name only; Ollama ignores the key's value
+SENTINEL_LLM__TEMPERATURE=0.0
+```
+
+```bash
+OLLAMA_HOST=0.0.0.0 ollama serve
+ollama pull phi4-mini     # first run downloads the model (plan target: qwen2.5:7b-instruct)
+uv run python scripts/smoke_llm.py --provider ollama
+```
+
+`SENTINEL_LLM__API_KEY_ENV` is a **name**, never a value: the provider factory (`factory.py`) reads
+the actual key from whatever env var that name points to via `os.environ`, so the repo stores no
+credential. Ollama's OpenAI-compatible server ignores the key but still needs an `Authorization`
+header, so the factory always supplies a token (placeholder locally, real key for cloud).
 
 ## Quickstart
 
@@ -141,6 +183,9 @@ Pre-declared scope cuts and known weaknesses are tracked in
 - **L5 – Grafana optional:** only behind a compose profile, no provisioned dashboards.
 - **L7 – Partial scale emulation:** `scale_replicas` restarts replicas if present, else
   `not_applicable`.
+- **L8 – Live-eval reliability:** with the available DeepSeek reasoning model, `live` eval does not
+  reliably reach the ≥75% threshold (thinking mode ignores `temperature`); the `mock` run is the
+  proven plumbing. The live threshold is not lowered silently (see the eval table above).
 
 ## Design decisions (condensed)
 
