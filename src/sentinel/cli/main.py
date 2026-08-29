@@ -21,9 +21,15 @@ from sentinel.rag.ingest import ingest_runbooks
 app = typer.Typer()
 incidents_app = typer.Typer()
 app.add_typer(incidents_app, name="incidents")
+evals_app = typer.Typer()
+app.add_typer(evals_app, name="evals")
 
 console = Console()
 _DEFAULT_API = "http://localhost:8000"
+
+# Mock mode must be perfect (the harness knows the answer); live mode accepts a small miss rate
+# because a real model is allowed to be less than perfect (D13 / plan Task 7.2).
+_THRESHOLD = {"mock": 1.0, "live": 0.75}
 
 
 def _client(api: str) -> httpx.Client:
@@ -153,6 +159,51 @@ def ingest_runbooks_cmd() -> None:
     """Chunk, embed and upsert the runbook corpus into the `runbooks` table (Task 2.3)."""
     ingested = ingest_runbooks()
     typer.echo(f"Ingested {ingested} runbook chunk(s).")
+
+
+# --------------------------------------------------------------------------- evals group
+
+
+@evals_app.command("run")
+def evals_run(
+    mode: str = typer.Option(
+        "mock", "--mode", help="eval mode: mock (deterministic) or live (real LLM)"
+    ),
+    dataset: str | None = typer.Option(None, "--dataset", help="path to a dataset dir"),
+) -> None:
+    """Run the eval harness over the dataset and print a per-incident + aggregate table."""
+    from sentinel.evals.dataset import DEFAULT_DATASET_DIR
+    from sentinel.evals.harness import run_all
+
+    ds = dataset or str(DEFAULT_DATASET_DIR)
+    results = run_all(mode, ds)
+    if not results:
+        typer.echo("no dataset entries found")
+        raise typer.Exit(code=1)
+
+    table = Table("incident", "chaos", "hypothesis", "remediation")
+    for r in results:
+        table.add_row(
+            r.entry_id,
+            r.chaos,
+            "ok" if r.hypothesis_ok else "FAIL",
+            "ok" if r.remediation_ok else "FAIL",
+        )
+    console.print(table)
+
+    total = len(results)
+    hyp = sum(1 for r in results if r.hypothesis_ok)
+    rem = sum(1 for r in results if r.remediation_ok)
+    pass_count = sum(1 for r in results if r.hypothesis_ok and r.remediation_ok)
+    accuracy = pass_count / total
+    threshold = _THRESHOLD.get(mode, 1.0)
+    console.print(
+        f"{mode}: hypothesis {hyp}/{total}, remediation {rem}/{total}, "
+        f"overall {pass_count}/{total} ({accuracy:.0%}) — threshold {threshold:.0%}"
+    )
+    if accuracy < threshold:
+        console.print(f"[red]below threshold ({accuracy:.0%} < {threshold:.0%})[/red]")
+        raise typer.Exit(code=1)
 
 
 if __name__ == "__main__":
