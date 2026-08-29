@@ -139,6 +139,27 @@ def _code_todo_count() -> int:
     return total
 
 
+def _user_visible_limitation_nums() -> list[int]:
+    """The L-numbers of KNOWN_LIMITATIONS entries that are ``(user-visible)`` (not internal)."""
+    kl = ROOT / "KNOWN_LIMITATIONS.md"
+    if not kl.exists():
+        return []
+    nums = []
+    for line in kl.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^##\s*L(\d+)\b.*\(user-visible\)", line)
+        if m:
+            nums.append(int(m.group(1)))
+    return nums
+
+
+def _readme_limitation_nums() -> set[int]:
+    """The L-numbers the README mentions (its Known limitations + any cross-references)."""
+    readme = ROOT / "README.md"
+    if not readme.exists():
+        return set()
+    return {int(n) for n in re.findall(r"\bL(\d+)\b", readme.read_text(encoding="utf-8"))}
+
+
 def _fail(message: str) -> None:
     print(f"FAIL: {message}", file=sys.stderr)
 
@@ -195,6 +216,14 @@ def main() -> int:
         if over:
             _fail(f"KNOWN_LIMITATIONS entry block(s) with more than one review marker: {over}")
             ok = False
+
+    # ---- README documents every user-visible limitation ----
+    user_visible = _user_visible_limitation_nums()
+    readme_nums = _readme_limitation_nums()
+    missing = [n for n in user_visible if n not in readme_nums]
+    if missing:
+        _fail(f"README does not mention user-visible limitation(s): L{missing}")
+        ok = False
 
     if ok:
         print(
