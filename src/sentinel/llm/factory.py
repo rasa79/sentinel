@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import os
 
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
@@ -38,7 +39,14 @@ def get_chat_model(settings: Settings) -> ChatOpenAI:
     For the local provider the key is a placeholder: Ollama's OpenAI-compatible server ignores
     it, but the protocol still requires an Authorization header. For cloud, a real key must be
     present in the env var named by ``settings.llm.api_key_env``.
+
+    D14 (zero-manual-steps): ``settings`` reads ``.env`` for its fields, but the API key is consumed
+    here via ``os.environ`` (it is not a Settings field). pydantic-settings does not populate
+    ``os.environ``, so a host-side process would otherwise need to ``source .env`` first.
+    ``load_dotenv`` loads ``.env`` into ``os.environ`` without overriding already-set vars, so
+    ``uv run sentinel evals run`` (and any direct factory use) needs no manual step.
     """
+    load_dotenv()
     llm = settings.llm
     api_key = os.environ.get(
         llm.api_key_env,

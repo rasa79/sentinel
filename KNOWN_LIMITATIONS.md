@@ -50,9 +50,8 @@
 
 - **What this means:** When `LANGSMITH_API_KEY` is unset, tracing and eval-upload are a logged
   no-op; the harness still runs and scores locally.
-- **Where partial coverage lives:** none (component `src/sentinel/evals` not yet created).
-- **TODO(review):** move this marker into `src/sentinel/evals/harness.py` when the eval harness
-  exists (Phase 7) and confirm the no-op guard.
+- **Where partial coverage lives:** `src/sentinel/evals/harness.py` (`_maybe_langsmith`); the
+  accepted no-op is confirmed there and its `review` marker lives with it.
 
 ## L7 — scale_replicas is partially emulated on plain Docker (user-visible)
 
@@ -60,3 +59,20 @@
   named replica containers that already exist and otherwise returns `not_applicable`.
 - **Where partial coverage lives:** the review marker is in `src/sentinel/tools/executor.py` (the
   `_scale` path); the limitation is enforced there.
+
+## L8 — Live-mode eval reliability below the 75% threshold with the available DeepSeek reasoning model (user-visible)
+
+- **What this means:** The eval harness is proven correct in `mock` mode (100% — the mock LLM answers
+  from the entry's ground truth, so it is a plumbing/self-test), but `live` mode against the
+  configured DeepSeek reasoning model does NOT reliably reach the plan's ≥75% threshold. Observed
+  (8-incident structural scoring): `deepseek-v4-flash` → 38%/75%/62%/38% (1 of 4 runs ≥75%);
+  `deepseek-v4-pro` → 62%/75%/75% (2 of 3 runs ≥75%). Both models run in THINKING mode (they return
+  `reasoning_content`), and DeepSeek's thinking mode ignores the `temperature` knob, so
+  `temperature=0.0` does not force determinism — live results vary run-to-run.
+- **Where partial coverage lives:** none; the verified plumbing is `mock` mode + the harness
+  (`src/sentinel/evals/harness.py`, LEARN[30]). The shortfall is model reasoning/sampling variance on
+  the structured output task; a deterministic/local non-reasoning endpoint (the plan's `qwen2.5:7b`
+  target, or thinking mode disabled) is needed before live can gate.
+- **TODO(review):** L8 - treat live as a gate only once a deterministic or non-reasoning inference
+  path is available (or rethink the threshold/model); do not lower the 75% threshold silently (plan
+  D13/risk R1).

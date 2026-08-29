@@ -90,6 +90,25 @@ chunks), embeds each with a local `all-MiniLM-L6-v2` model, and upserts into the
 ingest** into `./.cache` (gitignored), so the first run needs network access and a moment; later
 runs reuse the cached model and are quick.
 
+## Eval (Phase 7)
+
+`uv run sentinel evals run --mode mock|live` runs the 8-incident eval dataset
+(`evals/dataset/*.yaml`) through the real agent graph with canned tool outputs. `mock` is
+deterministic (100% — the mock LLM answers from the ground truth, a self-test of the harness);
+`live` uses the configured LLM.
+
+Measured `live` accuracy (structural scoring: cause category + affected service + action; threshold
+≥ 75%):
+
+| Model | Runs (overall) | Passed ≥75% |
+|-------|----------------|-------------|
+| deepseek-v4-flash (baseline, weakest) | 38%, 75%, 62%, 38% | 1 / 4 |
+| deepseek-v4-pro                        | 62%, 75%, 75%    | 2 / 3 |
+
+Both DeepSeek models run in **thinking** mode (they return `reasoning_content`), which ignores the
+`temperature` knob — so `temperature=0.0` does not force determinism and the live results vary
+run-to-run. See L8 in `KNOWN_LIMITATIONS.md` for the live-eval reliability caveat.
+
 - **L1 – Chaos suite scope:** only container/process-level faults; no network degradation or
   disk-fill in v1.
 - **L2 – Demo-only security posture:** unauthenticated API endpoints and a mounted Docker socket

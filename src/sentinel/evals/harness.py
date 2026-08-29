@@ -223,6 +223,8 @@ def evaluate(entry: DatasetEntry, *, mode: str, settings: Settings | None = None
 
 def _maybe_langsmith() -> None:
     """LangSmith is a logged no-op unless a key is configured (L6)."""
+    # TODO(review): L6 - LangSmith upload is a logged no-op (internal-only); confirm this stays a
+    # no-op and does not silently skip eval runs when a key IS configured.
     if os.environ.get("LANGSMITH_API_KEY"):
         logger.info("LANGSMITH_API_KEY set; runs would be uploaded (L6: currently a logged no-op).")
     else:
