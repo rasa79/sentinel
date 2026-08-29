@@ -180,6 +180,26 @@ def _wait_status(api: str, incident_id: str, targets: set[str], console: Console
     raise DemoError(f"incident {incident_id} never reached {sorted(targets)!r}")
 
 
+def _health_check(api: str, service_url: str, console: Console) -> None:
+    """Verify the API + a toy service are reachable; raise DemoError with a clear message if not."""
+    checks = [
+        (f"Sentinel API at {api}", f"{api.rstrip('/')}/health"),
+        (f"orders service at {service_url}", f"{service_url.rstrip('/')}/chaos/status"),
+    ]
+    for label, url in checks:
+        try:
+            resp = httpx.get(url, timeout=5)
+        except httpx.HTTPError as exc:
+            raise DemoError(
+                f"{label} is not reachable ({exc}). Is the stack up "
+                f"(`docker compose -f deploy/docker-compose.yaml --profile api up -d`)"
+                f"?"
+            ) from exc
+        if resp.status_code != 200:
+            raise DemoError(f"{label} returned HTTP {resp.status_code}; is the stack healthy?")
+    console.print("[dim]stack health check passed[/dim]")
+
+
 def run_demo(
     api: str = _DEFAULT_API,
     service_url: str = _DEFAULT_ORDERS_URL,
@@ -194,6 +214,8 @@ def run_demo(
     base = api.rstrip("/")
 
     try:
+        # 0. Health-check the stack so the failure mode is a clear message, not a mid-run mystery.
+        _health_check(base, service_url, console)
         # 1. Inject the fault, then generate /work traffic so it manifests (the chaos only affects
         #    /work). The webhook fires immediately; the gather nodes retry briefly on empty evidence
         #    because the scrape/Loki pipelines lag (LEARN[28]).
