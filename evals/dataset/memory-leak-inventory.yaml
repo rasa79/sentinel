@@ -1,0 +1,25 @@
+id: memory-leak-inventory
+chaos: memory_leak
+alert:
+  alertname: memory-leak-inventory
+  service: inventory
+  severity: critical
+known_cause:
+  category: memory_leak
+  affected_service: inventory
+expected_action: restart_service
+tools:
+  logs:
+  - service: inventory
+    message: 'OOM risk: resident memory climbing'
+    level: WARN
+  metrics:
+  - metric: process_resident_memory_bytes
+    value: 200000000
+    breach: true
+    expression: process_resident_memory_bytes{instance=~"inventory:.*"}
+  deploys: []
+  runbooks:
+  - title: 'memory-leak: Diagnostic steps'
+    snippet: RSS climbing; restart to reclaim.
+    score: 0.9

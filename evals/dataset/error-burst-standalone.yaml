@@ -1,0 +1,25 @@
+id: error-burst-standalone
+chaos: error_burst
+alert:
+  alertname: error-burst-standalone
+  service: payments
+  severity: critical
+known_cause:
+  category: error_burst
+  affected_service: payments
+expected_action: restart_service
+tools:
+  logs:
+  - service: payments
+    message: 503 Service Unavailable during /work
+    level: ERROR
+  metrics:
+  - metric: http_errors_total
+    value: 0.03
+    breach: true
+    expression: rate(http_errors_total{service="payments"}[5m])
+  deploys: []
+  runbooks:
+  - title: 'error-burst: Diagnostic steps'
+    snippet: Check for a sudden error-rate spike.
+    score: 0.9

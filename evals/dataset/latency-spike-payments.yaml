@@ -1,0 +1,25 @@
+id: latency-spike-payments
+chaos: latency_spike
+alert:
+  alertname: latency-spike-payments
+  service: payments
+  severity: critical
+known_cause:
+  category: latency_spike
+  affected_service: payments
+expected_action: restart_service
+tools:
+  logs:
+  - service: payments
+    message: slow /work request
+    level: WARN
+  metrics:
+  - metric: http_request_duration_seconds
+    value: 0.85
+    breach: true
+    expression: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{service="payments"}[5m]))
+  deploys: []
+  runbooks:
+  - title: 'latency-spike: Diagnostic steps'
+    snippet: Check p95 latency trend.
+    score: 0.9

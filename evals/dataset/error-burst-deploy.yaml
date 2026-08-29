@@ -1,0 +1,31 @@
+id: error-burst-deploy
+chaos: error_burst
+alert:
+  alertname: error-burst-after-deploy
+  service: orders
+  severity: critical
+known_cause:
+  category: error_burst
+  affected_service: orders
+expected_action: rollback_deploy
+tools:
+  logs:
+  - service: orders
+    message: 500 Internal Server Error during /work
+    level: ERROR
+  metrics:
+  - metric: http_errors_total
+    value: 0.04
+    breach: true
+    expression: rate(http_errors_total{service="orders"}[5m])
+  deploys:
+  - service: orders
+    version: 1.0.1
+    event: bad_deploy
+  - service: orders
+    version: 1.0.0
+    event: deploy
+  runbooks:
+  - title: 'error-burst-after-deploy: Diagnostic steps'
+    snippet: Correlate a deploy with the error burst.
+    score: 0.9

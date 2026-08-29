@@ -1,0 +1,31 @@
+id: bad-deploy-orders
+chaos: bad_deploy
+alert:
+  alertname: bad-deploy-orders
+  service: orders
+  severity: critical
+known_cause:
+  category: bad_deploy
+  affected_service: orders
+expected_action: rollback_deploy
+tools:
+  logs:
+  - service: orders
+    message: 503 during /work after deploy
+    level: ERROR
+  metrics:
+  - metric: http_errors_total
+    value: 0.02
+    breach: true
+    expression: rate(http_errors_total{service="orders"}[5m])
+  deploys:
+  - service: orders
+    version: 1.0.2
+    event: bad_deploy
+  - service: orders
+    version: 1.0.1
+    event: deploy
+  runbooks:
+  - title: 'bad-deploy-rollback: Diagnostic steps'
+    snippet: Roll back the bad release.
+    score: 0.9
